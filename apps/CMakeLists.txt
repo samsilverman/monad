@@ -1,0 +1,12 @@
+function(add_app target source)
+    add_executable(${target} ${source})
+    target_link_libraries(${target} PRIVATE monad)
+    target_compile_options(${target} PRIVATE ${MONAD_WARNING_FLAGS})
+endfunction()
+
+add_app(1_2DGrid 1_2DGrid/1_2DGrid.cpp)
+add_app(2_3DGrid 2_3DGrid/2_3DGrid.cpp)
+add_app(3_DensityFunction 3_DensityFunction/3_DensityFunction.cpp)
+add_app(4_LinearElasticity 4_LinearElasticity/4_LinearElasticity.cpp)
+add_app(5_LinearDielectric 5_LinearDielectric/5_LinearDielectric.cpp)
+add_app(6_LinearPiezoelectricity 6_LinearPiezoelectricity/6_LinearPiezoelectricity.cpp)
