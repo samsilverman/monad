@@ -32,7 +32,7 @@
 
     ```bash
     mkdir build && cd build
-    cmake -DRWMICRO_BUILD_TESTS=ON ..
+    cmake -DMONAD_BUILD_TESTS=ON ..
     make -j8
     ./tests/monad_tests
     ```
