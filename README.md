@@ -3,9 +3,9 @@
 [![Report a Bug](https://img.shields.io/static/v1.svg?label=🐛&message=Report%20a%20Bug&color=red)](https://github.com/samsilverman/monad/issues)
 [![Request a Feature](https://img.shields.io/static/v1.svg?label=💡&message=Request%20a%20Feature&color=blue)](https://github.com/samsilverman/monad/issues)
 
-<!-- [![MacOS Build Status](https://github.com/samsilverman/monad/actions/workflows/macos-build.yml/badge.svg)](https://github.com/samsilverman/monad/actions/workflows/macos-build.yml)
+[![MacOS Build Status](https://github.com/samsilverman/monad/actions/workflows/macos-build.yml/badge.svg)](https://github.com/samsilverman/monad/actions/workflows/macos-build.yml)
 [![Ubuntu Build Status](https://github.com/samsilverman/monad/actions/workflows/ubuntu-build.yml/badge.svg)](https://github.com/samsilverman/monad/actions/workflows/ubuntu-build.yml)
-[![Windows Build Status](https://github.com/samsilverman/monad/actions/workflows/windows-build.yml/badge.svg)](https://github.com/samsilverman/monad/actions/workflows/windows-build.yml) -->
+[![Windows Build Status](https://github.com/samsilverman/monad/actions/workflows/windows-build.yml/badge.svg)](https://github.com/samsilverman/monad/actions/workflows/windows-build.yml)
 
 ![Teaser](https://github.com/samsilverman/monad/blob/main/assets/images/teaser.svg)
 
@@ -112,29 +112,28 @@ For convenience, a `build.sh` script is included for building with compile flags
 
 int main() {
     // Grid resolution
-    std::size_t nx = 5;
-    std::size_t ny = 5;
+    const std::size_t nx = 5;
+    const std::size_t ny = 5;
 
     // Grid size
-    double lx = 1.0;
-    double ly = 1.0;
+    const double lx = 1.0;
+    const double ly = 1.0;
 
     monad::Quad8Grid grid({nx, ny}, {lx, ly});
     grid.setDensitiesRandom();
 
     // Linear elastic material
-    double E = 1.0;
-    double nu = 0.3;
-    auto planeCondition = monad::LinearElasticMaterial2d::PlaneCondition::PlaneStress;
+    const double E = 1.0;
+    const double nu = 0.3;
+    const auto planeCondition = monad::LinearElasticMaterial2d::PlaneCondition::PlaneStress;
 
-    monad::LinearElasticMaterial2d material(E, nu, planeCondition);
+    const monad::LinearElasticMaterial2d material(E, nu, planeCondition);
 
     std::cout << "Base material stiffness tensor:\n" << material.materialTensor() << std::endl;
 
     // Solve
-    monad::LinearElasticSolver solver(grid, material);
-    auto results = solver.solve();
-    auto CBar = results.CBar;
+    const monad::LinearElasticSolver solver(grid, material);
+    const auto results = solver.solve();
 
     std::cout << "Homogenized stiffness tensor:\n" << results.CBar << std::endl;
 
