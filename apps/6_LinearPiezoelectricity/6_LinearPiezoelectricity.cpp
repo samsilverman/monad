@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
         {0.0, E / 10.0, E / 10.0}
     };
 
-    const monad::LinearPiezoelectricMaterial material(elasticMaterial, dielectricMaterial, d);
+    const monad::LinearPiezoelectricMaterial2d material(elasticMaterial, dielectricMaterial, d);
 
     const auto folder = std::filesystem::path(__FILE__).parent_path();
     const auto csvFile = folder / "data.csv";
