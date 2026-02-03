@@ -11,21 +11,21 @@
  *
  * The Gmsh files are written to:
  *
- *      `/path/to/apps/4_LinearElasticityity`
+ *      `/path/to/apps/4_LinearElasticity`
  *
  * @param E Young's modulus of the base material (default=1).
  * @param nu Poisson's ratio of the base material (default=0.3).
  *
  * Usage:
- *      $ 4_LinearElasticityity [E] [nu]
+ *      $ 4_LinearElasticity [E] [nu]
  *
  * Example:
- *      $ 4_LinearElasticityity 1 0.3
+ *      $ 4_LinearElasticity 1 0.3
  *      ---Homogenized stiffness tensor---
  *          0.131143    0.0567244  8.43549e-15
  *         0.0567244    0.0586181 -3.55764e-15
  *       8.43549e-15 -3.55764e-15    0.0150901
- *      Saved to /path/to/apps/4_LinearElasticityity
+ *      Saved to /path/to/apps/4_LinearElasticity
  */
 #include <iostream>
 #include <filesystem>
@@ -50,20 +50,20 @@ int main(int argc, char* argv[]) {
         }
     }
     catch (const std::invalid_argument &e) {
-        std::cerr << "4_LinearElasticityity: Invalid argument: " << e.what() << std::endl;
+        std::cerr << "4_LinearElasticity: Invalid argument: " << e.what() << std::endl;
         return 1;
     }
 
     if (E <= 0) {
-        std::cerr << "4_LinearElasticityity: E (" << E <<  ") must be positive.\n";
+        std::cerr << "4_LinearElasticity: E (" << E <<  ") must be positive.\n";
         return 1;
     }
     if (nu <= -1.0 || nu >= 0.5) {
-        std::cerr << "4_LinearElasticityity: nu (" << nu <<  ") must be in range (-1,0.5).\n";
+        std::cerr << "4_LinearElasticity: nu (" << nu <<  ") must be in range (-1,0.5).\n";
         return 1;
     }
 
-    monad::Quad8Grid grid({15, 15}, {1.0, 1.0});
+    monad::Quad8Grid grid({32, 32}, {1.0, 1.0});
 
     const monad::LinearElasticMaterial2d material(E, nu, monad::LinearElasticMaterial2d::PlaneCondition::PlaneStress);
 

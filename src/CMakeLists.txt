@@ -30,4 +30,3 @@ if(MONAD_USE_OPENMP)
 endif()
 
 target_compile_options(monad PRIVATE ${MONAD_WARNING_FLAGS})
-
