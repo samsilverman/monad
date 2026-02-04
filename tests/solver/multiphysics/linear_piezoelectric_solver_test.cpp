@@ -87,10 +87,7 @@ TEMPLATE_LIST_TEST_CASE("monad::LinearPiezoelectricSolver: Test solve", "[monad]
         grid.setDensitiesRandom(1234);
         const LinearPiezoelectricSolver solver(grid, material);
 
-        auto options = SolverOptions::defaults();
-        options.maxIterations = 2000;
-
-        auto results = solver.solve(options);
+        auto results = solver.solve();
         const auto &cBar = results.cBar;
         const auto &epsilonBar = results.epsilonBar;
         const auto &dBar = results.dBar;

@@ -145,7 +145,7 @@ namespace monad {
             for (std::size_t i = 0; i < ny; ++i) {
                 for (std::size_t j = 0; j < nx; ++j) {
                     std::size_t rowStart = nx * (ny - 1 - i);
-                    this->densities_[rowStart + j] = rows[i][j];
+                    this->setDensity(rowStart + j, rows[i][j]);
                 }
             }
         }

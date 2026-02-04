@@ -28,21 +28,21 @@
  * @param epsilon Permittivity constant (default=1).
  *
  * Usage:
- *      $ 6_LinearPiezoelectricity [epsilon]
+ *      $ 6_LinearPiezoelectricity [E] [nu] [epsilon]
  *
  * Example:
  *      $ 6_LinearPiezoelectricity 1 0.3 1
  *      ---Homogenized stiffness tensor---
- *         0.131468   0.0569734 3.09493e-05
- *        0.0569734   0.0588763 3.35591e-05
- *      3.09493e-05 3.35591e-05   0.0151413
+ *         0.131468   0.0569734 3.09494e-05
+ *        0.0569734   0.0588763 3.35592e-05
+ *      3.09494e-05 3.35592e-05   0.0151413
  *
  *      ---Homogenized permittivity tensor---
  *          0.190909 -0.000693838
  *      -0.000693838     0.123736
  *
  *      ---Homogenized piezoelectric tensor---
- *        0.0156172  0.00799243 0.000359504
+ *        0.0156172  0.00799243 0.000359505
  *       0.00231767   0.0028842  0.00253854
  *      Saved to /path/to/apps/6_LinearPiezoelectricity
  */

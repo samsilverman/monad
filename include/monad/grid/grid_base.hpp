@@ -270,14 +270,14 @@ namespace monad {
                 throw std::invalid_argument("Density (" + std::to_string(density) + ") is out of range [0,1].");
             }
 
-            density = std::max(NUMERICAL_ZERO, density);
-
-            std::fill(densities_.begin(), densities_.end(), density);
+            for (std::size_t i = 0; i < numElements(); ++i) {
+                setDensity(i, density);
+            }
         }
 
         /// @brief Set the material densities to zeros.
         void setDensitiesZeros() noexcept {
-            setDensitiesConstant(NUMERICAL_ZERO);
+            setDensitiesConstant(0.0);
         }
 
         /// @brief Set the material densities to ones.
@@ -304,9 +304,9 @@ namespace monad {
 
             std::uniform_real_distribution<double> dist(NUMERICAL_ZERO, upperBound);
 
-            std::generate(densities_.begin(), densities_.end(), [&]() {
-                return dist(rng);
-            });
+            for (std::size_t i = 0; i < numElements(); ++i) {
+                setDensity(i, dist(rng));
+            }
         }
 
         /**
@@ -335,7 +335,7 @@ namespace monad {
                     mass += density;
                 }
 
-                densities_[i] = mass / nodes.rows();
+                setDensity(i, mass / nodes.rows());
             }
         }
 

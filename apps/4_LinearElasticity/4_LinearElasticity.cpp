@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    monad::Quad8Grid grid({32, 32}, {1.0, 1.0});
+    monad::Quad8Grid grid({15, 15}, {1.0, 1.0});
 
     const monad::LinearElasticMaterial2d material(E, nu, monad::LinearElasticMaterial2d::PlaneCondition::PlaneStress);
 
