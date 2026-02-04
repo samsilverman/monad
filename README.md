@@ -1,7 +1,7 @@
 # Monad
 
 [![Report a Bug](https://img.shields.io/static/v1.svg?label=🐛&message=Report%20a%20Bug&color=red)](https://github.com/samsilverman/monad/issues)
-[![Request a Feature](https://img.shields.io/static/v1.svg?label=💡&message=Request%20a%20Feature&color=blue)](https://github.com/samsilverman/monad/issues)
+[![Request a Feature](https://img.shields.io/static/v1.svg?label=💡&message=Request%20a%20Feature&color=yellow)](https://github.com/samsilverman/monad/issues)
 
 [![MacOS Build Status](https://github.com/samsilverman/monad/actions/workflows/macos-build.yml/badge.svg)](https://github.com/samsilverman/monad/actions/workflows/macos-build.yml)
 [![Ubuntu Build Status](https://github.com/samsilverman/monad/actions/workflows/ubuntu-build.yml/badge.svg)](https://github.com/samsilverman/monad/actions/workflows/ubuntu-build.yml)
@@ -189,7 +189,7 @@ The following features are planned or under consideration for future releases:
 
 If you use Monad in your project, please consider citing the library:
 
-```text
+```bibtex
 @misc{monad,
 title = {Monad},
 author = {Samuel Silverman},
