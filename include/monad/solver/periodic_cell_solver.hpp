@@ -10,6 +10,7 @@
 #include "monad/grid/grid_base.hpp"
 #include "monad/solver/solver_options.hpp"
 #include "monad/fem/operator/matrix_free_operator.hpp"
+#include "monad/fem/operator/jacobi_preconditioner.hpp"
 
 namespace monad {
 
@@ -240,7 +241,9 @@ namespace monad {
                 const Operator K(grid_, elementKReference_);
                 const FieldMatrix reducedF = buildReducedRhs_(K);
 
-                Eigen::ConjugateGradient<Operator, Eigen::Lower | Eigen::Upper, Eigen::IdentityPreconditioner> cg;
+                using preconditioner = fem::JacobiPreconditioner<Operator>;
+
+                Eigen::ConjugateGradient<Operator, Eigen::Lower | Eigen::Upper, preconditioner> cg;
                 cg.setMaxIterations(options.maxIterations);
                 cg.setTolerance(options.tolerance);
                 cg.compute(K);

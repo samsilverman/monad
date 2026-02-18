@@ -110,7 +110,6 @@ int main(int argc, char* argv[]) {
 
     monad::SolverOptions options;
     options.fields = monad::FieldSave::All;
-    options.maxIterations = 5000;
 
     const monad::LinearPiezoelectricSolver solver(grid, material);
     const auto results = solver.solve(options);
