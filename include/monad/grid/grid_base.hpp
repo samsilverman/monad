@@ -9,6 +9,7 @@
 #include <random>
 #include <functional>
 #include "monad/detail/constants.hpp"
+#include "monad/integration/integrate_scalar.hpp"
 
 namespace monad {
 
@@ -312,7 +313,7 @@ namespace monad {
         /**
          * @brief Set the material densities using a continuous function.
          *
-         * Element values are determined by averaging their nodal values.
+         * Element values are computed as the element-wise average of the continuous function.
          *
          * @param[in] f Continuous function from ℝᵈ→[0,1] evaluated at element nodes.
          *
@@ -323,19 +324,25 @@ namespace monad {
         void setDensitiesFunction(const std::function<double(const Point &)> &f) {
             for (std::size_t i = 0; i < numElements(); ++i) {
                 const auto nodes = elementNodes(i);
-                double mass = 0.0;
 
-                for (const Point node : nodes.rowwise()) {
-                    const double density = std::max(NUMERICAL_ZERO, f(node));
+                auto integrand = [&](const Point &point) -> double {
+                    const auto N = Element::shapeFunctions(point);
+                    const Point globalPoint = N.transpose() * nodes;
+
+                    const double density = f(globalPoint);
 
                     if (density < 0 || density > 1) {
                         throw std::invalid_argument("Function value (" + std::to_string(density) + ") is outside range [0,1].");
                     }
 
-                    mass += density;
-                }
+                    const auto J = Element::jacobian(point, nodes);
 
-                setDensity(i, mass / nodes.rows());
+                    return density * std::abs(J.determinant());
+                };
+
+                double density = integration::integrateScalar(integrand, Element::quadratureRule()) / Element::measure(nodes);
+
+                setDensity(i, density);
             }
         }
 

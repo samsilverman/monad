@@ -748,25 +748,17 @@ TEMPLATE_LIST_TEST_CASE("monad::Grid3d: Test setDensitiesFunction", "[monad]", T
     TestType grid({2, 3, 4}, {0.5, 1.5, 2.0});
 
     SECTION("No errors") {
-        // sin²(x+y+z)
-        auto f = [](const Point &point) -> double {
-            const double x = point(0);
-            const double y = point(1);
-            const double z = point(2);
-
-            return std::pow(std::sin(x + y + z), 2);
+        // 0.1x+0.2y+0.3z
+        auto f = [](const Point &p) -> double {
+            return 0.1 * p(0) + 0.2 * p(1) + 0.3 * p(2);
         };
 
         grid.setDensitiesFunction(f);
 
-        double expected = 0.0;
+        // The average of a linear function over a convex region equals its value at the centroid
         const auto nodes = grid.elementNodes(1);
-
-        for (Point node : nodes.rowwise()) {
-            expected += f(node);
-        }
-
-        expected /= static_cast<double>(nodes.rows());
+        const Point centroid = nodes.colwise().mean();
+        const double expected = f(centroid);
 
         REQUIRE_THAT(grid.getDensity(1), Catch::Matchers::WithinAbs(expected, NUMERICAL_ZERO));
     }
