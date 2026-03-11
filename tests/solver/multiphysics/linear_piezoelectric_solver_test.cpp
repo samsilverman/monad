@@ -15,8 +15,7 @@
 using namespace monad;
 using namespace monad::detail;
 
-// using Types = std::tuple<Quad4Grid, Quad8Grid, Hex8Grid, Hex20Grid>;
-using Types = std::tuple<Hex20Grid>;
+using Types = std::tuple<Quad4Grid, Quad8Grid, Hex8Grid, Hex20Grid>;
 
 TEMPLATE_LIST_TEST_CASE("monad::LinearPiezoelectricSolver: Test solve", "[monad]", Types) {
     using Resolution = typename TestType::Resolution;
