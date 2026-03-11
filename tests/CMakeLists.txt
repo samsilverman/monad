@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 
-file(GLOB_RECURSE TEST_SOURCES ${CMAKE_SOURCE_DIR}/tests/*.cpp)
+set(TEST_SOURCES
+    grid/hex8_topology_test.cpp
+    grid/hex20_topology_test.cpp
+    grid/quad4_topology_test.cpp
+    grid/quad8_topology_test.cpp
+    grid/structured_grid_test.cpp
+)
 
 add_executable(monad_tests ${TEST_SOURCES})
 

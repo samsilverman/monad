@@ -6,5 +6,5 @@ fi
 rm -rf build
 mkdir build
 cd build
-cmake .. -DMONAD_USE_OPENMP=ON -DMONAD_BUILD_APPS=ON -DMONAD_BUILD_TESTS=ON
+cmake .. -DMONAD_USE_OPENMP=ON -DMONAD_BUILD_APPS=OFF -DMONAD_BUILD_TESTS=ON
 make -j8
