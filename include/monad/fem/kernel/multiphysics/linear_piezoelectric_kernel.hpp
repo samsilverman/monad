@@ -48,7 +48,7 @@ namespace monad {
 
                 using MechanicalMaterial = material::LinearElasticMaterial<Element::Dim>;
                 using ElectricalMaterial = material::LinearTransportMaterial<Element::Dim>;
-                using Material = material::LinearPiezoelectricMaterial<MechanicalMaterial, ElectricalMaterial>;
+                using Material = material::LinearPiezoelectricMaterial<Element::Dim>;
 
                 using Point = typename Element::Point;
                 using NodesMatrix = typename Element::NodesMatrix;
@@ -117,8 +117,11 @@ namespace monad {
                         return Bphi.transpose() * d * Bu * J.determinant();
                     };
 
-                    const auto Kuu = MechanicalKernel::lhs(material.elasticMaterial(), nodes);
-                    const auto Kphiphi = ElectricalKernel::lhs(material.dielectricMaterial(), nodes);
+                    const MechanicalMaterial mechanicalMaterial(material.stiffnessTensor());
+                    const ElectricalMaterial electricalMaterial(material.permittivityTensor());
+
+                    const auto Kuu = MechanicalKernel::lhs(mechanicalMaterial, nodes);
+                    const auto Kphiphi = ElectricalKernel::lhs(electricalMaterial, nodes);
                     const CouplingStiffnessMatrix Kphiu = integration::integrateMatrix(integrand, rule);
 
                     StiffnessMatrix K;
@@ -172,8 +175,11 @@ namespace monad {
                         return B.transpose() * d.transpose() * J.determinant();
                     };
 
-                    const auto Fuu = MechanicalKernel::rhs(material.elasticMaterial(), nodes);
-                    const auto Fphiphi = ElectricalKernel::rhs(material.dielectricMaterial(), nodes);
+                    const MechanicalMaterial mechanicalMaterial(material.stiffnessTensor());
+                    const ElectricalMaterial electricalMaterial(material.permittivityTensor());
+
+                    const auto Fuu = MechanicalKernel::rhs(mechanicalMaterial, nodes);
+                    const auto Fphiphi = ElectricalKernel::rhs(electricalMaterial, nodes);
 
                     // No need to multiply by T̄=I for unit macroscopic strains
                     const PhiUCouplingFieldMatrix Fphiu = -integration::integrateMatrix(integrandPhiU, rule);

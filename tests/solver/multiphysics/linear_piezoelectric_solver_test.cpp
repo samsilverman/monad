@@ -2,8 +2,6 @@
 #include <stdexcept>
 #include <catch2/catch_template_test_macros.hpp>
 #include "monad/grid/grid_aliases.hpp"
-#include "monad/material/mechanical/linear_elastic_material_2d.hpp"
-#include "monad/material/mechanical/linear_elastic_material_3d.hpp"
 #include "monad/material/material_aliases.hpp"
 #include "monad/material/bounds.hpp"
 #include "monad/field/field_aliases.hpp"
@@ -14,27 +12,23 @@
 using namespace monad;
 using namespace monad::detail;
 
-template <class GridT, class MechanicalMaterialT, class ElectricalMaterialT, class MaterialT, class DensityFieldT, class SolverT>
+template <class GridT, class MaterialT, class DensityFieldT, class SolverT>
 struct TypePair {
     using Grid = GridT;
-    using MechanicalMaterial = MechanicalMaterialT;
-    using ElectricalMaterial = ElectricalMaterialT;
     using Material = MaterialT;
     using DensityField = DensityFieldT;
     using Solver = SolverT;
 };
 
 using Types = std::tuple<
-    TypePair<Quad4Grid, LinearElasticMaterial2d, LinearDielectricMaterial2d, LinearPiezoelectricMaterial2d, DensityField2d, LinearPiezoelectricSolver<Quad4Grid>>,
-    TypePair<Quad8Grid, LinearElasticMaterial2d, LinearDielectricMaterial2d, LinearPiezoelectricMaterial2d, DensityField2d, LinearPiezoelectricSolver<Quad8Grid>>,
-    TypePair<Hex8Grid, LinearElasticMaterial3d, LinearDielectricMaterial3d, LinearPiezoelectricMaterial3d, DensityField3d, LinearPiezoelectricSolver<Hex8Grid>>,
-    TypePair<Hex20Grid, LinearElasticMaterial3d, LinearDielectricMaterial3d, LinearPiezoelectricMaterial3d, DensityField3d, LinearPiezoelectricSolver<Hex20Grid>>
+    TypePair<Quad4Grid, LinearPiezoelectricMaterial2d, DensityField2d, LinearPiezoelectricSolver<Quad4Grid>>,
+    TypePair<Quad8Grid, LinearPiezoelectricMaterial2d, DensityField2d, LinearPiezoelectricSolver<Quad8Grid>>,
+    TypePair<Hex8Grid, LinearPiezoelectricMaterial3d, DensityField3d, LinearPiezoelectricSolver<Hex8Grid>>,
+    TypePair<Hex20Grid, LinearPiezoelectricMaterial3d, DensityField3d, LinearPiezoelectricSolver<Hex20Grid>>
 >;
 
 TEMPLATE_LIST_TEST_CASE("monad::LinearPiezoelectricSolver: Test solve", "[monad]", Types) {
     using Grid = typename TestType::Grid;
-    using MechanicalMaterial = typename TestType::MechanicalMaterial;
-    using ElectricalMaterial = typename TestType::ElectricalMaterial;
     using Material = typename TestType::Material;
     using DensityField = typename TestType::DensityField;
     using Solver = typename TestType::Solver;
@@ -42,8 +36,8 @@ TEMPLATE_LIST_TEST_CASE("monad::LinearPiezoelectricSolver: Test solve", "[monad]
     using Resolution = typename Grid::Resolution;
     using Size = typename Grid::Size;
     using CouplingTensor = typename Material::CouplingTensor;
-    using StiffnessTensor = typename MechanicalMaterial::MaterialTensor;
-    using PermittivityTensor = typename ElectricalMaterial::MaterialTensor;
+    using StiffnessTensor = typename Material::StiffnessTensor;
+    using PermittivityTensor = typename Material::PermittivityTensor;
 
     Resolution resolution;
     resolution.fill(2);
@@ -59,19 +53,15 @@ TEMPLATE_LIST_TEST_CASE("monad::LinearPiezoelectricSolver: Test solve", "[monad]
     // Make PD
     c += StiffnessTensor::Identity();
 
-    const MechanicalMaterial elasticMaterial(c);
-
     PermittivityTensor epsilon = PermittivityTensor::Random();
     // Make PSD
     epsilon = epsilon.transpose() * epsilon;
     // Make PD
     epsilon += PermittivityTensor::Identity();
 
-    const ElectricalMaterial dielectricMaterial(epsilon);
+    const CouplingTensor d = CouplingTensor::Constant(0.01);
 
-    const CouplingTensor d = 0.1 * CouplingTensor::Random();
-
-    const Material material(elasticMaterial, dielectricMaterial, d);
+    const Material material(c, epsilon, d);
 
     DensityField densityField(resolution);
 

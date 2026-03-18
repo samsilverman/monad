@@ -7,9 +7,6 @@
 #include "monad/fem/element/quad4.hpp"
 #include "monad/fem/element/quad8.hpp"
 #include "monad/fem/kernel/multiphysics/linear_piezoelectric_kernel.hpp"
-#include "monad/material/mechanical/linear_elastic_material_2d.hpp"
-#include "monad/material/mechanical/linear_elastic_material_3d.hpp"
-#include "monad/material/material_aliases.hpp"
 #include "monad/detail/eigen_utils.hpp"
 #include "monad/detail/constants.hpp"
 
@@ -25,31 +22,41 @@ using Types2d = std::tuple<Quad4, Quad8>;
 using Types3d = std::tuple<Hex8, Hex20>;
 
 TEMPLATE_LIST_TEST_CASE("monad::fem::electrical::LinearPiezoelectricKernel (2d): Test lhs/rhs", "[monad]", Types2d) {
-    using CouplingTensor = typename LinearPiezoelectricMaterial2d::CouplingTensor;
+    using Kernel = LinearPiezoelectricKernel<TestType>;
+    using Material = typename Kernel::Material;
+    using StiffnessTensor = typename Material::StiffnessTensor;
+    using PermittivityTensor = typename Material::PermittivityTensor;
+    using CouplingTensor = typename Material::CouplingTensor;
 
-    const LinearElasticMaterial2d elasticMaterial(1.0, 0.3, monad::LinearElasticMaterial2d::PlaneCondition::PlaneStress);
-    const LinearDielectricMaterial2d dielectricMaterial(2.1);
+    StiffnessTensor c = StiffnessTensor::Random();
+    // Make PSD
+    c = c.transpose() * c;
+    // Make PD
+    c += StiffnessTensor::Identity();
 
-    const CouplingTensor d {
-        {0.01, 0.0, 0.0},
-        {0.0, 0.01, 0.01}
-    };
+    PermittivityTensor epsilon = PermittivityTensor::Random();
+    // Make PSD
+    epsilon = epsilon.transpose() * epsilon;
+    // Make PD
+    epsilon += PermittivityTensor::Identity();
 
-    const LinearPiezoelectricMaterial2d material(elasticMaterial, dielectricMaterial, d);
+    const CouplingTensor d = CouplingTensor::Constant(0.01);
+
+    const Material material(c, epsilon, d);
 
     auto nodes = TestType::localNodes();
 
     SECTION("No errors") {
-        const auto K = LinearPiezoelectricKernel<TestType>::lhs(material, nodes);
+        const auto K = Kernel::lhs(material, nodes);
 
         REQUIRE(isSymmetric(K));
         REQUIRE(!isPSD(K));
 
         SECTION("xᵀKx=xᵀF=0 for rigid body transformations") {
-            using FieldVector = Eigen::Vector<double, LinearPiezoelectricKernel<TestType>::NumDofs>;
-            using MechanicalKernel = typename LinearPiezoelectricKernel<TestType>::MechanicalKernel;
+            using FieldVector = Eigen::Vector<double, Kernel::NumDofs>;
+            using MechanicalKernel = typename Kernel::MechanicalKernel;
 
-            const auto F = LinearPiezoelectricKernel<TestType>::rhs(material, nodes);
+            const auto F = Kernel::rhs(material, nodes);
 
             FieldVector x;
 
@@ -89,45 +96,54 @@ TEMPLATE_LIST_TEST_CASE("monad::fem::electrical::LinearPiezoelectricKernel (2d):
     SECTION("Invalid element - degenerate element") {
         nodes = 0.0 * nodes;
 
-        REQUIRE_THROWS_AS(LinearPiezoelectricKernel<TestType>::lhs(material, nodes), std::invalid_argument);
-        REQUIRE_THROWS_AS(LinearPiezoelectricKernel<TestType>::rhs(material, nodes), std::invalid_argument);
+        REQUIRE_THROWS_AS(Kernel::lhs(material, nodes), std::invalid_argument);
+        REQUIRE_THROWS_AS(Kernel::rhs(material, nodes), std::invalid_argument);
     }
 
     SECTION("Invalid element - reverse node ordering") {
         nodes = nodes.rowwise().reverse();
 
-        REQUIRE_THROWS_AS(LinearPiezoelectricKernel<TestType>::lhs(material, nodes), std::invalid_argument);
-        REQUIRE_THROWS_AS(LinearPiezoelectricKernel<TestType>::rhs(material, nodes), std::invalid_argument);
+        REQUIRE_THROWS_AS(Kernel::lhs(material, nodes), std::invalid_argument);
+        REQUIRE_THROWS_AS(Kernel::rhs(material, nodes), std::invalid_argument);
     }
 }
 
 TEMPLATE_LIST_TEST_CASE("monad::fem::electrical::LinearPiezoelectricKernel (3d): Test lhs/rhs", "[monad]", Types3d) {
-    using CouplingTensor = typename LinearPiezoelectricMaterial3d::CouplingTensor;
+    using Kernel = LinearPiezoelectricKernel<TestType>;
+    using Material = typename Kernel::Material;
+    using StiffnessTensor = typename Material::StiffnessTensor;
+    using PermittivityTensor = typename Material::PermittivityTensor;
+    using CouplingTensor = typename Material::CouplingTensor;
 
-    const LinearElasticMaterial3d elasticMaterial(1.0, 0.3);
-    const LinearDielectricMaterial3d dielectricMaterial(2.1);
+    StiffnessTensor c = StiffnessTensor::Random();
+    // Make PSD
+    c = c.transpose() * c;
+    // Make PD
+    c += StiffnessTensor::Identity();
 
-    const CouplingTensor d {
-        {0.0, 0.0, 0.0, 0.01, 0.0, 0.0},
-        {0.0, 0.0, 0.01, 0.0, 0.0, 0.0},
-        {0.01, 0.01, 0.01, 0.0, 0.0, 0.0}
-    };
+    PermittivityTensor epsilon = PermittivityTensor::Random();
+    // Make PSD
+    epsilon = epsilon.transpose() * epsilon;
+    // Make PD
+    epsilon += PermittivityTensor::Identity();
 
-    const LinearPiezoelectricMaterial3d material(elasticMaterial, dielectricMaterial, d);
+    const CouplingTensor d = CouplingTensor::Constant(0.01);
+
+    const Material material(c, epsilon, d);
 
     auto nodes = TestType::localNodes();
 
     SECTION("No errors") {
-        const auto K = LinearPiezoelectricKernel<TestType>::lhs(material, nodes);
+        const auto K = Kernel::lhs(material, nodes);
 
         REQUIRE(isSymmetric(K));
         REQUIRE(!isPSD(K));
 
         SECTION("xᵀKx=xᵀF=0 for rigid body transformations") {
-            using FieldVector = Eigen::Vector<double, LinearPiezoelectricKernel<TestType>::NumDofs>;
-            using MechanicalKernel = typename LinearPiezoelectricKernel<TestType>::MechanicalKernel;
+            using FieldVector = Eigen::Vector<double, Kernel::NumDofs>;
+            using MechanicalKernel = typename Kernel::MechanicalKernel;
 
-            const auto F = LinearPiezoelectricKernel<TestType>::rhs(material, nodes);
+            const auto F = Kernel::rhs(material, nodes);
 
             FieldVector x;
 
@@ -190,14 +206,14 @@ TEMPLATE_LIST_TEST_CASE("monad::fem::electrical::LinearPiezoelectricKernel (3d):
     SECTION("Invalid element - degenerate element") {
         nodes = 0.0 * nodes;
 
-        REQUIRE_THROWS_AS(LinearPiezoelectricKernel<TestType>::lhs(material, nodes), std::invalid_argument);
-        REQUIRE_THROWS_AS(LinearPiezoelectricKernel<TestType>::rhs(material, nodes), std::invalid_argument);
+        REQUIRE_THROWS_AS(Kernel::lhs(material, nodes), std::invalid_argument);
+        REQUIRE_THROWS_AS(Kernel::rhs(material, nodes), std::invalid_argument);
     }
 
     SECTION("Invalid element - reverse node ordering") {
         nodes = nodes.rowwise().reverse();
 
-        REQUIRE_THROWS_AS(LinearPiezoelectricKernel<TestType>::lhs(material, nodes), std::invalid_argument);
-        REQUIRE_THROWS_AS(LinearPiezoelectricKernel<TestType>::rhs(material, nodes), std::invalid_argument);
+        REQUIRE_THROWS_AS(Kernel::lhs(material, nodes), std::invalid_argument);
+        REQUIRE_THROWS_AS(Kernel::rhs(material, nodes), std::invalid_argument);
     }
 }

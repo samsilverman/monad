@@ -31,8 +31,7 @@ set(TEST_SOURCES
     io/save_grid_test.cpp
     material/mechanical/linear_elastic_material_2d_test.cpp
     material/mechanical/linear_elastic_material_3d_test.cpp
-    material/multiphysics/linear_piezoelectric_material_2d_test.cpp
-    material/multiphysics/linear_piezoelectric_material_3d_test.cpp
+    material/multiphysics/linear_piezoelectric_material_test.cpp
     material/transport/linear_transport_material_test.cpp
     material/bounds_test.cpp
     solver/mechanical/linear_elastic_solver_test.cpp

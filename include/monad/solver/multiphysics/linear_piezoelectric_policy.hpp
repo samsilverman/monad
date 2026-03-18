@@ -6,8 +6,6 @@
 #include <Eigen/Core>
 #include "monad/fem/kernel/multiphysics/linear_piezoelectric_kernel.hpp"
 #include "monad/fem/operator/multiphysics/linear_piezoelectric_dof_traits.hpp"
-#include "monad/material/mechanical/linear_elastic_material.hpp"
-#include "monad/material/transport/linear_transport_material.hpp"
 #include "monad/material/multiphysics/linear_piezoelectric_material.hpp"
 #include "monad/solver/mechanical/linear_elastic_policy.hpp"
 #include "monad/solver/scalar/linear_scalar_diffusive_policy.hpp"
@@ -28,12 +26,10 @@ namespace monad {
             struct LinearPiezoelectricPolicy {
                 using Kernel = fem::multiphysics::LinearPiezoelectricKernel<Element>;
                 using DofTraits = fem::multiphysics::LinearPiezoelectricDofTraits<Element::Dim>;
-                using MechanicalMaterial = material::LinearElasticMaterial<Element::Dim>;
-                using ElectricalMaterial = material::LinearTransportMaterial<Element::Dim>;
-                using Material = material::LinearPiezoelectricMaterial<MechanicalMaterial, ElectricalMaterial>;
+                using Material = material::LinearPiezoelectricMaterial<Element::Dim>;
                 using MaterialTensor = typename Material::MaterialTensor;
-                using StiffnessTensor = typename MechanicalMaterial::MaterialTensor;
-                using PermittivityTensor = typename ElectricalMaterial::MaterialTensor;
+                using StiffnessTensor = typename Material::StiffnessTensor;
+                using PermittivityTensor = typename Material::PermittivityTensor;
                 using CouplingTensor = typename Material::CouplingTensor;
                 using MechanicalPolicy = solver::mechanical::LinearElasticPolicy<Element>;
                 using ElectricalPolicy = solver::scalar::LinearScalarDiffusivePolicy<Element, fem::scalar::GradientConvention::Negative>;

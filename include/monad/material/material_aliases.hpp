@@ -2,8 +2,6 @@
 
 #include "monad/material/transport/linear_transport_material.hpp"
 #include "monad/material/multiphysics/linear_piezoelectric_material.hpp"
-#include "monad/material/mechanical/linear_elastic_material_2d.hpp"
-#include "monad/material/mechanical/linear_elastic_material_3d.hpp"
 
 namespace monad {
 
@@ -217,7 +215,7 @@ namespace monad {
      *
      * - d∈ℝ²ˣ³ is the piezoelectric coupling tensor.
      */
-    using LinearPiezoelectricMaterial2d = material::LinearPiezoelectricMaterial<LinearElasticMaterial2d, LinearDielectricMaterial2d>;
+    using LinearPiezoelectricMaterial2d = material::LinearPiezoelectricMaterial<2>;
 
     /**
      * @brief 3D linear piezoelectric material model.
@@ -237,6 +235,6 @@ namespace monad {
      *
      * - d∈ℝ³ˣ⁶ is the piezoelectric coupling tensor.
      */
-    using LinearPiezoelectricMaterial3d = material::LinearPiezoelectricMaterial<LinearElasticMaterial3d, LinearDielectricMaterial3d>;
+    using LinearPiezoelectricMaterial3d = material::LinearPiezoelectricMaterial<3>;
 
 } // namespace monad

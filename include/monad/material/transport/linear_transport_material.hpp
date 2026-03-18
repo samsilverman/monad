@@ -3,7 +3,6 @@
 #include <stdexcept>
 #include <string>
 #include <Eigen/Core>
-#include "monad/detail/mean.hpp"
 #include "monad/detail/eigen_utils.hpp"
 #include "monad/detail/constants.hpp"
 

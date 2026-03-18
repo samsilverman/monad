@@ -26,21 +26,26 @@ namespace monad {
          *
          * - d∈ℝᵈˣᵛ is the piezoelectric coupling tensor.
          *
-         * @tparam MechanicalMaterial Linear elastic material type (e.g. LinearElasticMaterial2d).
-         * @tparam ElectricalMaterial Linear dielectric material type (e.g. LinearDielectricMaterial2d).
+         * @tparam D Spatial dimension (2 or 3).
          */
-        template <class MechanicalMaterial, class ElectricalMaterial>
+        template <int D>
         class LinearPiezoelectricMaterial {
         public:
-            static_assert(MechanicalMaterial::Dim == ElectricalMaterial::Dim, "Spatial dimension of materials must be equal.");
-            static_assert(MechanicalMaterial::Dim == 2 || MechanicalMaterial::Dim == 3, "Spatial dimension D must be 2 or 3.");
+            static_assert(D == 2 || D == 3, "Spatial dimension D must be 2 or 3.");
 
             /// @brief Spatial dimension (2 or 3).
-            static constexpr int Dim = MechanicalMaterial::Dim;
+            static constexpr int Dim = D;
 
             /// @brief Number of components in Voigt notation.
-            static constexpr int VoigtSize = MechanicalMaterial::VoigtSize;
+            static constexpr int VoigtSize = (Dim == 2) ? 3 : 6;
 
+            /// @brief Stiffness tensor type.
+            using StiffnessTensor = Eigen::Matrix<double, VoigtSize, VoigtSize>;
+
+            /// @brief Permittivity tensor type.
+            using PermittivityTensor = Eigen::Matrix<double, Dim, Dim>;
+
+            /// @brief Piezoelectric coupling tensor type.
             using CouplingTensor = Eigen::Matrix<double, Dim, VoigtSize>;
 
             /** @brief Coupled constitutive operator type.
@@ -55,10 +60,12 @@ namespace monad {
             /**
              * @brief Constructs a linear piezoelectric material.
              *
-             * @param[in] elasticMaterial Linear elastic material.
-             * @param[in] dielectricMaterial Linear dielectric material.
+             * @param[in] c Stiffness tensor.
+             * @param[in] epsilon Permittivity tensor.
              * @param[in] d Piezoelectric coupling tensor.
              *
+             * @throws std::invalid_argument if `c` is not positive definite.
+             * @throws std::invalid_argument if `epsilon` is not positive definite.
              * @throws std::invalid_argument if the Schur complement
              *
              * ```
@@ -67,49 +74,55 @@ namespace monad {
              *
              * is not positive definite.
              */
-            LinearPiezoelectricMaterial(const MechanicalMaterial &elasticMaterial, const ElectricalMaterial &dielectricMaterial, const CouplingTensor &d)
-                : elasticMaterial_(elasticMaterial), dielectricMaterial_(dielectricMaterial), d_(d) {
-                const auto &c = elasticMaterial_.materialTensor();
-                const auto &epsilon = dielectricMaterial_.materialTensor();
+            LinearPiezoelectricMaterial(const StiffnessTensor &c, const PermittivityTensor &epsilon, const CouplingTensor &d)
+                : c_(c), epsilon_(epsilon), d_(d) {
+
+                if (!detail::isPD(c_)) {
+                    throw std::invalid_argument("Stiffness tensor is not positive definite.");
+                }
+
+                if (!detail::isPD(epsilon_)) {
+                    throw std::invalid_argument("Permittivity tensor is not positive definite.");
+                }
+
+                op_ << c_, -d_.transpose(),
+                       -d_, -epsilon_;
 
                 // Schur complement must be positive definite for thermodynamic stability.
-                const auto schur = c - d_.transpose() * epsilon.inverse() * d_;
+                const auto schur = c_ - d_.transpose() * epsilon_.inverse() * d_;
                 if (!detail::isPD(schur)) {
                     throw std::invalid_argument("Schur complement is not positive definite.");
                 }
-
-                op_ << c, -d_.transpose(),
-                       -d_, -epsilon;
             }
 
-            /**
-             * @brief Converts from a compatible piezoelectric material type.
-             *
-             * This constructor allows piezoelectric materials built from compatible
-             * mechanical and electrical material types to be converted into this
-             * instantiation.
-             *
-             * This is needed when solver code expects a canonical
-             * `LinearPiezoelectricMaterial<...>` type, but the input uses derived
-             * or aliased component material types.
-             *
-             * @tparam OtherMechanicalMaterial Compatible mechanical material type.
-             * @tparam OtherElectricalMaterial Compatible electrical material type.
-             *
-             * @param[in] other Piezoelectric material to convert from.
-             */
-            template <typename OtherMechanicalMaterial, typename OtherElectricalMaterial>
-            LinearPiezoelectricMaterial(const LinearPiezoelectricMaterial<OtherMechanicalMaterial, OtherElectricalMaterial> &other)
-                : LinearPiezoelectricMaterial(other.elasticMaterial(), other.dielectricMaterial(), other.couplingTensor()) {}
+            // /**
+            //  * @brief Converts from a compatible piezoelectric material type.
+            //  *
+            //  * This constructor allows piezoelectric materials built from compatible
+            //  * mechanical and electrical material types to be converted into this
+            //  * instantiation.
+            //  *
+            //  * This is needed when solver code expects a canonical
+            //  * `LinearPiezoelectricMaterial<...>` type, but the input uses derived
+            //  * or aliased component material types.
+            //  *
+            //  * @tparam OtherMechanicalMaterial Compatible mechanical material type.
+            //  * @tparam OtherElectricalMaterial Compatible electrical material type.
+            //  *
+            //  * @param[in] other Piezoelectric material to convert from.
+            //  */
+            // template <typename OtherMechanicalMaterial, typename OtherElectricalMaterial>
+            // LinearPiezoelectricMaterial(const LinearPiezoelectricMaterial<OtherMechanicalMaterial, OtherElectricalMaterial> &other)
+            //     : LinearPiezoelectricMaterial(other.elasticMaterial(), other.dielectricMaterial(), other.couplingTensor()) {}
 
-            /// @brief Linear elastic material.
-            const MechanicalMaterial &elasticMaterial() const noexcept {
-                return elasticMaterial_;
+            /// @brief Stiffness tensor.
+            const StiffnessTensor &stiffnessTensor() const noexcept {
+                return c_;
             }
 
-            /// @brief Linear dielectric material.
-            const ElectricalMaterial &dielectricMaterial() const noexcept {
-                return dielectricMaterial_;
+            /// @brief Permittivity tensor.
+            const PermittivityTensor &permittivityTensor() const noexcept {
+                return epsilon_;
             }
 
             /// @brief Piezoelectric coupling tensor.
@@ -117,14 +130,22 @@ namespace monad {
                 return d_;
             }
 
-            /// @brief Coupled constitutive operator.
+            /** @brief Coupled constitutive operator.
+             *
+             * ```text
+             * ⎡ c  -dᵀ⎤
+             * ⎣-d  -ϵ ⎦
+             * ```
+             */
             const MaterialTensor &materialTensor() const noexcept {
                 return op_;
             }
 
             /// @brief Equality comparison.
             bool operator==(const LinearPiezoelectricMaterial &other) const noexcept {
-                return op_ == other.op_;
+                return c_.isApprox(other.c_, NUMERICAL_ZERO)
+                    && epsilon_.isApprox(other.epsilon_, NUMERICAL_ZERO)
+                    && d_.isApprox(other.d_, NUMERICAL_ZERO);
             }
 
             /// @brief Inequality comparison.
@@ -133,11 +154,11 @@ namespace monad {
             }
 
         private:
-            /// @brief Linear elastic material.
-            const MechanicalMaterial elasticMaterial_;
+            /// @brief Stiffness tensor.
+            const StiffnessTensor c_;
 
-            /// @brief Linear dielectric material.
-            const ElectricalMaterial dielectricMaterial_;
+            /// @brief Permittivity tensor.
+            const PermittivityTensor epsilon_;
 
             /// @brief Piezoelectric coupling tensor.
             const CouplingTensor d_;

@@ -13,7 +13,7 @@ namespace monad {
             throw std::runtime_error("Could not open " + file + " for reading.");
         }
 
-        std::size_t nx;
+        std::size_t nx = 0;
         std::vector<std::vector<double>> rows;
         std::string line;
 
@@ -50,7 +50,7 @@ namespace monad {
                 continue;
             }
 
-            if (rows.size() == 0) {
+            if (rows.empty()) {
                 nx = row.size();
             }
 
