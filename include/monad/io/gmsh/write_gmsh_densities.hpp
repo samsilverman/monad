@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <string>
 #include <ostream>
+#include "monad/field/density_field.hpp"
 #include "monad/detail/constants.hpp"
 
 namespace monad {
@@ -12,17 +13,19 @@ namespace monad {
         namespace gmsh {
 
             /**
-             * @brief Writes the Gmsh file `$ElementData` section containing per-element material densities.
+             * @brief Writes the Gmsh `$ElementData` section for per-element material densities.
              *
-             * @tparam Grid Grid class (e.g. Quad4Grid).
+             * @tparam D Spatial dimension (2 or 3).
              *
              * @param[in,out] os Output stream.
-             * @param[in] grid Periodic unit cell grid.
+             * @param[in] densityField Per-element density field.
              *
              * @note Gmsh documentation: https://gmsh.info/doc/texinfo/gmsh.html#MSH-file-format
              */
-            template <typename Grid>
-            void writeGmshDensities(std::ostream &os, const Grid &grid) noexcept {
+            template <int D>
+            void writeGmshDensities(std::ostream &os, const field::DensityField<D> &densityField) noexcept {
+                static_assert(D == 2 || D == 3, "Density field spatial dimension must be 2 or 3.");
+
                 const int numStringTags = 1;
                 const std::string stringTag = "Density";
                 const int numRealTags = 0;
@@ -37,15 +40,15 @@ namespace monad {
                    << numIntegerTags << "\n"
                    << "0\n"
                    << "1\n"
-                   << static_cast<int>(grid.numElements()) << "\n";
+                   << static_cast<int>(densityField.numElements()) << "\n";
 
                 // Section body
-                for (std::size_t i = 0; i < grid.numElements(); ++i) {
+                for (std::size_t i = 0; i < densityField.numElements(); ++i) {
                     const std::size_t elementTag = i + 1;
 
                     os << elementTag;
 
-                    double value = grid.getDensity(i);
+                    double value = densityField.getDensity(i);
 
                     // Report 0 rather than NUMERICAL_ZERO for cleaner output
                     if (value <= NUMERICAL_ZERO) {

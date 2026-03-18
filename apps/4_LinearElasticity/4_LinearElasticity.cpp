@@ -70,32 +70,32 @@ int main(int argc, char* argv[]) {
     const auto folder = std::filesystem::path(__FILE__).parent_path();
     const auto csvFile = folder / "data.csv";
 
-    grid.setDensitiesFile(csvFile.string());
+    const auto densityField = monad::makeDensityFieldFromCsv(csvFile);
 
     monad::SolverOptions options;
     options.fields = monad::FieldSave::All;
 
-    const monad::LinearElasticSolver solver(grid, material);
+    const monad::LinearElasticSolver<monad::Quad8Grid> solver;
 
-    const auto results = solver.solve(options);
+    const auto results = solver.solve(grid, densityField, material, options);
 
     std::cout << "---Homogenized stiffness tensor---\n" << results.CBar << std::endl;
 
     auto file = folder / "density.msh";
 
-    monad::saveGrid(grid, file.string(), true);
+    monad::saveGridAndDensityField(grid, densityField, file.string());
 
     file = folder / "uMacro.msh";
 
-    monad::saveGridAndField(grid, results.uMacro[0], file.string(), "Macro displacement");
+    monad::saveGridAndNodalField(grid, results.uMacro[0], file.string(), "Macro displacement");
 
     file = folder / "uMicro.msh";
 
-    monad::saveGridAndField(grid, results.uMicro[0], file.string(), "Micro displacement");
+    monad::saveGridAndNodalField(grid, results.uMicro[0], file.string(), "Micro displacement");
 
     file = folder / "u.msh";
 
-    monad::saveGridAndField(grid, results.u[0], file.string(), "Displacement");
+    monad::saveGridAndNodalField(grid, results.u[0], file.string(), "Displacement");
 
     std::cout << "Saved to " + file.string() << std::endl;
 

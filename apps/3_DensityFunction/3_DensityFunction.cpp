@@ -41,11 +41,11 @@ int main() {
         return (xComponent + yComponent + zComponent) / 3;
     };
 
-    grid.setDensitiesFunction(f);
+    const auto densityField = monad::makeDensityFieldFromFunction(grid, f);
 
     const auto file = std::filesystem::path(__FILE__).parent_path() / "output.msh";
 
-    monad::saveGrid(grid, file.string(), true);
+    monad::saveGridAndDensityField(grid, densityField, file.string());
 
     std::cout << "Saved to " + file.string() << std::endl;
 

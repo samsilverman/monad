@@ -95,11 +95,13 @@ int main(int argc, char* argv[]) {
     }
 
     monad::Hex8Grid grid({nx, ny, nz}, {lx, ly, lz});
-    grid.setDensitiesRandom(seed);
 
+    monad::DensityField3d densityField({nx, ny, nz});
+    densityField.setRandom(static_cast<unsigned int>(seed));
+ 
     const auto file = std::filesystem::path(__FILE__).parent_path() / "output.msh";
 
-    monad::saveGrid(grid, file.string(), true);
+    monad::saveGridAndDensityField(grid, densityField, file.string());
 
     std::cout << "Saved to " + file.string() << std::endl;
 

@@ -5,17 +5,20 @@
 namespace monad {
 
     /**
-     * @brief Represents a 3D linear elastic material model.
+     * @brief 3D linear elastic material model.
      *
-     * By Hooke's law, stress σ∈ℝ³ is a linear function of strain ε∈ℝ³:
+     * By Hooke's law, the stress σ∈ℝ⁶ is a linear function of
+     * the strain ε∈ℝ⁶:
      *
+     * ```text
      * σ=Cε
+     * ```
      *
-     * - C∈Sym₃(ℝ) is the stiffness tensor (in Voigt notation).
+     * - C∈Sym₆(ℝ) is the stiffness tensor in Voigt notation.
      */
-    class LinearElasticMaterial3d : public LinearElasticMaterial<3> {
+    class LinearElasticMaterial3d : public material::LinearElasticMaterial<3> {
     public:
-        using LinearElasticMaterial<3>::LinearElasticMaterial;
+        using material::LinearElasticMaterial<3>::LinearElasticMaterial;
 
         /**
          * @brief Constructs a 3D isotropic linear elastic material.

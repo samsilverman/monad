@@ -4,7 +4,7 @@
 using namespace monad;
 
 TEST_CASE("monad::SolverOptions: Test defaults", "[monad]") {
-    const auto options = SolverOptions::defaults();
+    const SolverOptions options;
 
     REQUIRE(options.maxIterations == 1000);
     REQUIRE(options.tolerance == 1e-6);
@@ -12,31 +12,29 @@ TEST_CASE("monad::SolverOptions: Test defaults", "[monad]") {
 }
 
 TEST_CASE("monad::SolverOptions: Test operator==", "[monad]") {
-    const auto options1 = SolverOptions::defaults();
-    const auto options2 = SolverOptions::defaults();
+    const SolverOptions options1;
+    const SolverOptions options2;
 
     REQUIRE(options1 == options2);
 }
 
 TEST_CASE("monad::SolverOptions: Test operator!=", "[monad]") {
-    const auto options1 = SolverOptions::defaults();
+    const SolverOptions options1;
+    SolverOptions options2;
 
     SECTION("Different maxIterations") {
-        auto options2 = SolverOptions::defaults();
         options2.maxIterations += 1;
 
         REQUIRE(options1 != options2);
     }
 
     SECTION("Different tolerance") {
-        auto options2 = SolverOptions::defaults();
         options2.tolerance += 1e-5;
 
         REQUIRE(options1 != options2);
     }
 
     SECTION("Different fields") {
-        auto options2 = SolverOptions::defaults();
         options2.fields = FieldSave::Total;
 
         REQUIRE(options1 != options2);

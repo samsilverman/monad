@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <Eigen/Core>
+#include "monad/detail/constants.hpp"
 
 namespace monad {
 
@@ -11,13 +12,10 @@ namespace monad {
         /**
          * @brief Quadrature rule for numerical integration.
          *
-         * A quadrature rule contains:
+         * A quadrature rule consists of a set of integration
+         * points and the corresponding integration weights.
          *
-         * 1. A list of integration points.
-         *
-         * 2. A corresponding list of weights.
-         *
-         * @tparam D Spatial dimension of the integration domain.
+         * @tparam D Spatial dimension.
          * @tparam N Number of integration points.
          */
         template <int D, int N>
@@ -25,7 +23,7 @@ namespace monad {
             static_assert(D > 0, "Spatial dimension of the integration domain must be positive.");
             static_assert(N > 0, "Number of integration points must be positive.");
 
-            /// @brief Spatial dimension of the integration domain.
+            /// @brief Spatial dimension.
             static constexpr int Dim = D;
 
             /// @brief Number of integration points.
@@ -38,13 +36,13 @@ namespace monad {
             /// @brief Integration points.
             PointsList points;
 
-            /// @brief Integration point weights.
+            /// @brief Integration weights.
             WeightsList weights;
 
             /// @brief Equality comparison.
-            bool operator==(QuadratureRule const &other) const {
+            bool operator==(const QuadratureRule &other) const noexcept {
                 for (std::size_t i = 0; i < NumPoints; ++i) {
-                    if (!points[i].isApprox(other.points[i])) {
+                    if (!points[i].isApprox(other.points[i], NUMERICAL_ZERO)) {
                         return false;
                     }
                 }
@@ -52,7 +50,7 @@ namespace monad {
             }
 
             /// @brief Inequality comparison.
-            bool operator!=(QuadratureRule const &rhs) const {
+            bool operator!=(const QuadratureRule &rhs) const noexcept {
                 return !(*this == rhs);
             }
         };

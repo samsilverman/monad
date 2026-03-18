@@ -5,17 +5,12 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include "monad/grid/structured_grid.hpp"
-#include "monad/grid/quad4_topology.hpp"
-#include "monad/grid/quad8_topology.hpp"
-#include "monad/grid/hex8_topology.hpp"
-#include "monad/grid/hex20_topology.hpp"
+#include "monad/grid/grid_aliases.hpp"
 #include "monad/detail/constants.hpp"
 
 using namespace monad;
-using namespace monad::grid;
 
-using Types = std::tuple<StructuredGrid<Quad4Topology>, StructuredGrid<Quad8Topology>, StructuredGrid<Hex8Topology>, StructuredGrid<Hex20Topology>>;
+using Types = std::tuple<Quad4Grid, Quad8Grid, Hex8Grid, Hex20Grid>;
 
 TEMPLATE_LIST_TEST_CASE("monad::grid::StructuredGrid: Test initalization", "[monad]", Types) {
     using Resolution = typename TestType::Resolution;
@@ -62,9 +57,7 @@ TEMPLATE_LIST_TEST_CASE("monad::grid::StructuredGrid: Test resolution", "[monad]
 
     const TestType grid(resolution, size);
 
-    const Resolution actual = grid.resolution();
-
-    REQUIRE(actual == resolution);
+    REQUIRE(grid.resolution() == resolution);
 }
 
 TEMPLATE_LIST_TEST_CASE("monad::grid::StructuredGrid: Test size", "[monad]", Types) {
@@ -79,9 +72,7 @@ TEMPLATE_LIST_TEST_CASE("monad::grid::StructuredGrid: Test size", "[monad]", Typ
 
     const TestType grid(resolution, size);
 
-    const Size actual = grid.size();
-
-    REQUIRE(actual == size);
+    REQUIRE(grid.size() == size);
 }
 
 TEMPLATE_LIST_TEST_CASE("monad::grid::StructuredGrid: Test numElements", "[monad]", Types) {
@@ -96,8 +87,8 @@ TEMPLATE_LIST_TEST_CASE("monad::grid::StructuredGrid: Test numElements", "[monad
 
     const TestType grid(resolution, size);
 
-    const std::size_t actual = static_cast<std::size_t>(std::pow(2.0, TestType::Dim));
-    const std::size_t expected = grid.numElements();
+    const std::size_t expected = static_cast<std::size_t>(std::pow(2.0, TestType::Dim));
+    const std::size_t actual = grid.numElements();
 
     REQUIRE(actual == expected);
 }
@@ -162,17 +153,17 @@ TEMPLATE_LIST_TEST_CASE("monad::grid::StructuredGrid: Test node", "[monad]", Typ
     }
 
     SECTION("Invalid index") {
-        REQUIRE_THROWS_AS(grid.node(grid.numNodes()), std::out_of_range);
+        const std::size_t badIndex = grid.numNodes();
+    
+        REQUIRE_THROWS_AS(grid.node(badIndex), std::out_of_range);
     }
 }
 
 TEST_CASE("monad::grid::StructuredGrid: Test nodes", "[monad]") {
-    SECTION("StructuredGrid<Quad4Topology>") {
-        using NodesList = typename StructuredGrid<Quad4Topology>::NodesList;
+    SECTION("Quad4Grid") {
+        using NodesList = typename Quad4Grid::NodesList;
 
-        const StructuredGrid<Quad4Topology> grid({2, 3}, {0.5, 1.5});
-
-        const auto actual = grid.nodes();
+        const Quad4Grid grid({2, 3}, {0.5, 1.5});
 
         const NodesList expected {
             {0.0, 0.0},
@@ -189,6 +180,8 @@ TEST_CASE("monad::grid::StructuredGrid: Test nodes", "[monad]") {
             {0.5, 1.5}
         };
 
+        const auto actual = grid.nodes();
+
         REQUIRE(actual.size() == expected.size());
 
         for (std::size_t i = 0; i < actual.size(); ++i) {
@@ -196,12 +189,10 @@ TEST_CASE("monad::grid::StructuredGrid: Test nodes", "[monad]") {
         }
     }
 
-    SECTION("StructuredGrid<Quad8Topology>") {
-        using NodesList = typename StructuredGrid<Quad8Topology>::NodesList;
+    SECTION("Quad8Grid") {
+        using NodesList = typename Quad8Grid::NodesList;
 
-        const StructuredGrid<Quad8Topology> grid({2, 3}, {0.5, 1.5});
-
-        const auto actual = grid.nodes();
+        const Quad8Grid grid({2, 3}, {0.5, 1.5});
 
         const NodesList expected {
             {0.0, 0.0},
@@ -235,6 +226,8 @@ TEST_CASE("monad::grid::StructuredGrid: Test nodes", "[monad]") {
             {0.5, 1.25}
         };
 
+        const auto actual = grid.nodes();
+
         REQUIRE(actual.size() == expected.size());
 
         for (std::size_t i = 0; i < actual.size(); ++i) {
@@ -242,12 +235,10 @@ TEST_CASE("monad::grid::StructuredGrid: Test nodes", "[monad]") {
         }
     }
 
-    SECTION("StructuredGrid<Hex8Topology>") {
-        using NodesList = typename StructuredGrid<Hex8Topology>::NodesList;
+    SECTION("Hex8Grid") {
+        using NodesList = typename Hex8Grid::NodesList;
 
-        const StructuredGrid<Hex8Topology> grid({2, 3, 4}, {0.5, 1.5, 2.0});
-
-        const auto actual = grid.nodes();
+        const Hex8Grid grid({2, 3, 4}, {0.5, 1.5, 2.0});
 
         const NodesList expected {
             {0.0, 0.0, 0.0},
@@ -312,6 +303,8 @@ TEST_CASE("monad::grid::StructuredGrid: Test nodes", "[monad]") {
             {0.5, 1.5, 2.0}
         };
 
+        const auto actual = grid.nodes();
+
         REQUIRE(actual.size() == expected.size());
 
         for (std::size_t i = 0; i < actual.size(); ++i) {
@@ -319,12 +312,10 @@ TEST_CASE("monad::grid::StructuredGrid: Test nodes", "[monad]") {
         }
     }
 
-    SECTION("StructuredGrid<Hex20Topology>") {
-        using NodesList = typename StructuredGrid<Hex20Topology>::NodesList;
+    SECTION("Hex20Grid") {
+        using NodesList = typename Hex20Grid::NodesList;
 
-        const StructuredGrid<Hex20Topology> grid({2, 3, 4}, {0.5, 1.5, 2.0});
-
-        const auto actual = grid.nodes();
+        const Hex20Grid grid({2, 3, 4}, {0.5, 1.5, 2.0});
 
         const NodesList expected {
             {0.0, 0.0, 0.0},
@@ -522,6 +513,8 @@ TEST_CASE("monad::grid::StructuredGrid: Test nodes", "[monad]") {
             {0.5, 1.5, 1.75}
         };
 
+        const auto actual = grid.nodes();
+
         REQUIRE(actual.size() == expected.size());
 
         for (std::size_t i = 0; i < actual.size(); ++i) {
@@ -552,15 +545,17 @@ TEMPLATE_LIST_TEST_CASE("monad::grid::StructuredGrid: Test element", "[monad]", 
     }
 
     SECTION("Invalid index") {
-        REQUIRE_THROWS_AS(grid.element(grid.numElements()), std::out_of_range);
+        const std::size_t badIndex = grid.numElements();
+
+        REQUIRE_THROWS_AS(grid.element(badIndex), std::out_of_range);
     }
 }
 
 TEST_CASE("monad::grid::StructuredGrid: Test elements", "[monad]") {
-    SECTION("StructuredGrid<Quad4Topology>") {
-        const StructuredGrid<Quad4Topology> grid({2, 3}, {0.5, 1.5});
+    SECTION("Quad4Grid") {
+        const Quad4Grid grid({2, 3}, {0.5, 1.5});
 
-        const StructuredGrid<Quad4Topology>::ElementsList expected {
+        const Quad4Grid::ElementsList expected {
             {0, 1, 4, 3},
             {1, 2, 5, 4},
             {3, 4, 7, 6},
@@ -572,10 +567,10 @@ TEST_CASE("monad::grid::StructuredGrid: Test elements", "[monad]") {
         REQUIRE(grid.elements() == expected);
     }
 
-    SECTION("StructuredGrid<Quad8Topology>") {
-        const StructuredGrid<Quad8Topology> grid({2, 3}, {0.5, 1.5});
+    SECTION("Quad8Grid") {
+        const Quad8Grid grid({2, 3}, {0.5, 1.5});
 
-        const StructuredGrid<Quad8Topology>::ElementsList expected {
+        const Quad8Grid::ElementsList expected {
             {0, 1, 4, 3, 12, 21, 14, 20},
             {1, 2, 5, 4, 13, 22, 15, 21},
             {3, 4, 7, 6, 14, 24, 16, 23},
@@ -587,10 +582,10 @@ TEST_CASE("monad::grid::StructuredGrid: Test elements", "[monad]") {
         REQUIRE(grid.elements() == expected);
     }
 
-    SECTION("StructuredGrid<Hex8Topology>") {
-        const StructuredGrid<Hex8Topology> grid({2, 3, 4}, {0.5, 1.5, 2.0});
+    SECTION("Hex8Grid") {
+        const Hex8Grid grid({2, 3, 4}, {0.5, 1.5, 2.0});
 
-        const StructuredGrid<Hex8Topology>::ElementsList expected {
+        const Hex8Grid::ElementsList expected {
             {0, 1, 4, 3, 12, 13, 16, 15},
             {1, 2, 5, 4, 13, 14, 17, 16},
             {3, 4, 7, 6, 15, 16, 19, 18},
@@ -620,10 +615,10 @@ TEST_CASE("monad::grid::StructuredGrid: Test elements", "[monad]") {
         REQUIRE(grid.elements() == expected);
     }
 
-    SECTION("StructuredGrid<Hex20Topology>") {
-        const StructuredGrid<Hex20Topology> grid({2, 3, 4}, {0.5, 1.5, 2.0});
+    SECTION("Hex20Grid") {
+        const Hex20Grid grid({2, 3, 4}, {0.5, 1.5, 2.0});
 
-        const StructuredGrid<Hex20Topology>::ElementsList expected {
+        const Hex20Grid::ElementsList expected {
             {0, 1, 4, 3, 12, 13, 16, 15, 60, 101, 62, 100, 68, 110, 70, 109, 145, 146, 149, 148},
             {1, 2, 5, 4, 13, 14, 17, 16, 61, 102, 63, 101, 69, 111, 71, 110, 146, 147, 150, 149},
             {3, 4, 7, 6, 15, 16, 19, 18, 62, 104, 64, 103, 70, 113, 72, 112, 148, 149, 152, 151},
@@ -676,15 +671,17 @@ TEMPLATE_LIST_TEST_CASE("monad::grid::StructuredGrid: Test periodicElement", "[m
     }
 
     SECTION("Invalid index") {
-        REQUIRE_THROWS_AS(grid.element(grid.numElements()), std::out_of_range);
+        const std::size_t badIndex = grid.numElements();
+        
+        REQUIRE_THROWS_AS(grid.element(badIndex), std::out_of_range);
     }
 }
 
 TEST_CASE("monad::grid::StructuredGrid: Test periodicElements", "[monad]") {
-    SECTION("StructuredGrid<Quad4Topology>") {
-        const StructuredGrid<Quad4Topology> grid({2, 3}, {0.5, 1.5});
+    SECTION("Quad4Grid") {
+        const Quad4Grid grid({2, 3}, {0.5, 1.5});
 
-        const StructuredGrid<Quad4Topology>::ElementsList expected {
+        const Quad4Grid::ElementsList expected {
             {0, 1, 3, 2},
             {1, 0, 2, 3},
             {2, 3, 5, 4},
@@ -696,10 +693,10 @@ TEST_CASE("monad::grid::StructuredGrid: Test periodicElements", "[monad]") {
         REQUIRE(grid.periodicElements() == expected);
     }
 
-    SECTION("StructuredGrid<Quad8Topology>") {
-        const StructuredGrid<Quad8Topology> grid({2, 3}, {0.5, 1.5});
+    SECTION("Quad8Grid") {
+        const Quad8Grid grid({2, 3}, {0.5, 1.5});
 
-        const StructuredGrid<Quad8Topology>::ElementsList expected {
+        const Quad8Grid::ElementsList expected {
             {0, 1, 3, 2, 6, 13, 8, 12},
             {1, 0, 2, 3, 7, 12, 9, 13},
             {2, 3, 5, 4, 8, 15, 10, 14},
@@ -711,10 +708,10 @@ TEST_CASE("monad::grid::StructuredGrid: Test periodicElements", "[monad]") {
         REQUIRE(grid.periodicElements() == expected);
     }
 
-    SECTION("StructuredGrid<Hex8Topology>") {
-        const StructuredGrid<Hex8Topology> grid({2, 3, 4}, {0.5, 1.5, 2.0});
+    SECTION("Hex8Grid") {
+        const Hex8Grid grid({2, 3, 4}, {0.5, 1.5, 2.0});
 
-        const StructuredGrid<Hex8Topology>::ElementsList expected {
+        const Hex8Grid::ElementsList expected {
             {0, 1, 3, 2, 6, 7, 9, 8},
             {1, 0, 2, 3, 7, 6, 8, 9},
             {2, 3, 5, 4, 8, 9, 11, 10},
@@ -744,10 +741,10 @@ TEST_CASE("monad::grid::StructuredGrid: Test periodicElements", "[monad]") {
         REQUIRE(grid.periodicElements() == expected);
     }
 
-    SECTION("StructuredGrid<Hex20Topology>") {
-        const StructuredGrid<Hex20Topology> grid({2, 3, 4}, {0.5, 1.5, 2.0});
+    SECTION("Hex20Grid") {
+        const Hex20Grid grid({2, 3, 4}, {0.5, 1.5, 2.0});
 
-        const StructuredGrid<Hex20Topology>::ElementsList expected {
+        const Hex20Grid::ElementsList expected {
             {0, 1, 3, 2, 6, 7, 9, 8, 24, 49, 26, 48, 30, 55, 32, 54, 72, 73, 75, 74},
             {1, 0, 2, 3, 7, 6, 8, 9, 25, 48, 27, 49, 31, 54, 33, 55, 73, 72, 74, 75},
             {2, 3, 5, 4, 8, 9, 11, 10, 26, 51, 28, 50, 32, 57, 34, 56, 74, 75, 77, 76},
@@ -779,11 +776,11 @@ TEST_CASE("monad::grid::StructuredGrid: Test periodicElements", "[monad]") {
 }
 
 TEST_CASE("monad::grid::StructuredGrid: Test elementNodes", "[monad]") {
-    SECTION("StructuredGrid<Quad4Topology>") {
-        const StructuredGrid<Quad4Topology> grid({2, 3}, {0.5, 1.5});
+    SECTION("Quad4Grid") {
+        const Quad4Grid grid({2, 3}, {0.5, 1.5});
 
         SECTION("No errors") {
-            const StructuredGrid<Quad4Topology>::NodesMatrix expected {
+            const Quad4Grid::NodesMatrix expected {
                 {0.25, 0.0},
                 {0.5, 0.0},
                 {0.5, 0.5},
@@ -796,15 +793,17 @@ TEST_CASE("monad::grid::StructuredGrid: Test elementNodes", "[monad]") {
         }
 
         SECTION("Invalid index") {
-            REQUIRE_THROWS_AS(grid.elementNodes(grid.numElements()), std::out_of_range);
+            const std::size_t badIndex = grid.numElements();
+
+            REQUIRE_THROWS_AS(grid.elementNodes(badIndex), std::out_of_range);
         }
     }
 
-    SECTION("StructuredGrid<Quad8Topology>") {
-        const StructuredGrid<Quad8Topology> grid({2, 3}, {0.5, 1.5});
+    SECTION("Quad8Grid") {
+        const Quad8Grid grid({2, 3}, {0.5, 1.5});
 
         SECTION("No errors") {
-            const StructuredGrid<Quad8Topology>::NodesMatrix expected {
+            const Quad8Grid::NodesMatrix expected {
                 {0.25, 0.0},
                 {0.5, 0.0},
                 {0.5, 0.5},
@@ -821,15 +820,17 @@ TEST_CASE("monad::grid::StructuredGrid: Test elementNodes", "[monad]") {
         }
 
         SECTION("Invalid index") {
-            REQUIRE_THROWS_AS(grid.elementNodes(grid.numElements()), std::out_of_range);
+            const std::size_t badIndex = grid.numElements();
+
+            REQUIRE_THROWS_AS(grid.elementNodes(badIndex), std::out_of_range);
         }
     }
 
-    SECTION("StructuredGrid<Hex8Topology>") {
-        const StructuredGrid<Hex8Topology> grid({2, 3, 4}, {0.5, 1.5, 2.0});
+    SECTION("Hex8Grid") {
+        const Hex8Grid grid({2, 3, 4}, {0.5, 1.5, 2.0});
 
         SECTION("No errors") {
-            const StructuredGrid<Hex8Topology>::NodesMatrix expected {
+            const Hex8Grid::NodesMatrix expected {
                 {0.25, 0.0, 0.0},
                 {0.5, 0.0, 0.0},
                 {0.5, 0.5, 0.0},
@@ -846,15 +847,17 @@ TEST_CASE("monad::grid::StructuredGrid: Test elementNodes", "[monad]") {
         }
 
         SECTION("Invalid index") {
-            REQUIRE_THROWS_AS(grid.elementNodes(grid.numElements()), std::out_of_range);
+            const std::size_t badIndex = grid.numElements();
+
+            REQUIRE_THROWS_AS(grid.elementNodes(badIndex), std::out_of_range);
         }
     }
 
-    SECTION("StructuredGrid<Hex20Topology>") {
-        const StructuredGrid<Hex20Topology> grid({2, 3, 4}, {0.5, 1.5, 2.0});
+    SECTION("Hex20Grid") {
+        const Hex20Grid grid({2, 3, 4}, {0.5, 1.5, 2.0});
 
         SECTION("No errors") {
-            const StructuredGrid<Hex20Topology>::NodesMatrix expected {
+            const Hex20Grid::NodesMatrix expected {
                 {0.25, 0.0, 0.0},
                 {0.5, 0.0, 0.0},
                 {0.5, 0.5, 0.0},
@@ -883,7 +886,9 @@ TEST_CASE("monad::grid::StructuredGrid: Test elementNodes", "[monad]") {
         }
 
         SECTION("Invalid index") {
-            REQUIRE_THROWS_AS(grid.elementNodes(grid.numElements()), std::out_of_range);
+            const std::size_t badIndex = grid.numElements();
+
+            REQUIRE_THROWS_AS(grid.elementNodes(badIndex), std::out_of_range);
         }
     }
 }

@@ -9,15 +9,19 @@ namespace monad {
     namespace integration {
 
         /**
-         * @brief Performs numerical integration (quadrature) of a vector integrand function.
+         * @brief Performs numerical integration (quadrature) of a matrix-valued integrand.
          *
-         * The integrand is a scalar function from ℝᵈ→ℝᵐˣᵐ.
+         * The integrand is a function of the form:
+         *
+         * ```text
+         * f:ℝᵈ→ℝᵐˣⁿ
+         * ```
          *
          * @tparam F Type of the integrand.
          * @tparam D Spatial dimension of the integration domain.
          * @tparam N Number of integration points.
          *
-         * @param[in] integrand Function to be integrated.
+         * @param[in] integrand Integrand function.
          * @param[in] rule Quadrature rule.
          *
          * @returns Approximate value of the integral.
@@ -27,7 +31,7 @@ namespace monad {
             using DomainType = typename QuadratureRule<D, N>::Point;
             using RangeType = std::invoke_result_t<F, DomainType>;
 
-            static_assert(std::is_invocable_r_v<RangeType, F, DomainType>, "Integrand must be callable as PointRange(PointDomain).");
+            static_assert(std::is_invocable_r_v<RangeType, F, DomainType>, "Integrand must be callable as f(x).");
 
             RangeType result = RangeType::Zero();
 

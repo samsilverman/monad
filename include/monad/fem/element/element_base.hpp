@@ -14,12 +14,12 @@ namespace monad {
         /**
          * @brief Curiously recurring template pattern (CRTP) base class for FEM elements.
          *
-         * @tparam Derived Concrete element class (for CRTP).
+         * @tparam Derived Concrete element type for CRTP.
          * @tparam D Spatial dimension (2 or 3).
-         * @tparam K Number of nodes in the element.
-         * @tparam N Number of integration points in the element.
+         * @tparam K Number of element nodes.
+         * @tparam N Number of integration points.
          *
-         * @note `Derived` classes must provide:
+         * @note `Derived` must provide:
          *
          * - `static NodesMatrix localNodes() noexcept`
          *
@@ -66,11 +66,17 @@ namespace monad {
             /**
              * @brief Shape functions evaluated at a local point.
              *
-             * For a D-dimensional element:
+             * - 2D element:
              *
-             * - D=2: [ξ η]ᵀ → [N₁(ξ,η) ... Nₖ(ξ,η)]ᵀ
+             * ```
+             * [ξ η]ᵀ → [N₁(ξ,η) ... Nₖ(ξ,η)]ᵀ
+             * ```
              *
-             * - D=3: [ξ η ζ]ᵀ → [N₁(ξ,η,ζ) ... Nₖ(ξ,η,ζ)]ᵀ
+             * - 3D element:
+             *
+             * ```
+             * [ξ η ζ]ᵀ → [N₁(ξ,η,ζ) ... Nₖ(ξ,η,ζ)]ᵀ
+             * ```
              *
              * @param[in] point Local point.
              *
@@ -83,21 +89,19 @@ namespace monad {
             /**
              * @brief Shape function gradients evaluated at a local point.
              *
-             * For a D-dimensional element:
-             *
-             * - D=2: [ξ η]ᵀ →
+             * - 2D element
              *
              * ```text
-             * ⎡∂N₁/∂ξ ... ∂Nₖ/∂ξ⎤
-             * ⎣∂N₁/∂η ... ∂Nₖ/∂η⎦
+             * [ξ η]ᵀ → ⎡∂N₁/∂ξ ... ∂Nₖ/∂ξ⎤
+             *          ⎣∂N₁/∂η ... ∂Nₖ/∂η⎦
              * ```
              *
-             * - D=3: [ξ η ζ]ᵀ →
+             * - 3D element:
              *
              * ```text
-             * ⎡∂N₁/∂ξ ... ∂Nₖ/∂ξ⎤
-             * ⎪∂N₁/∂η ... ∂Nₖ/∂η⎪
-             * ⎣∂N₁/∂ζ ... ∂Nₖ/∂ζ⎦
+             *            ⎡∂N₁/∂ξ ... ∂Nₖ/∂ξ⎤
+             * [ξ η ζ]ᵀ → ⎢∂N₁/∂η ... ∂Nₖ/∂η⎥
+             *            ⎣∂N₁/∂ζ ... ∂Nₖ/∂ζ⎦
              * ```
              *
              * @param[in] point Local point.
@@ -111,21 +115,19 @@ namespace monad {
             /**
              * @brief Jacobian matrix evaluated at a local point.
              *
-             * For a D-dimensional element:
-             *
-             * - D=2: [ξ η]ᵀ →
+             * - 2D element:
              *
              * ```text
-             * ⎡∂x/∂ξ ∂x/∂η⎤
-             * ⎣∂y/∂ξ ∂y/∂η⎦
+             * [ξ η]ᵀ → ⎡∂x/∂ξ ∂x/∂η⎤
+             *          ⎣∂y/∂ξ ∂y/∂η⎦
              * ```
              *
-             * - D=3: [ξ η ζ]ᵀ →
+             * - 3D element:
              *
              * ```text
-             * ⎡∂x/∂ξ ∂x/∂η ∂x/∂ζ⎤
-             * ⎪∂y/∂ξ ∂y/∂η ∂y/∂ζ⎪
-             * ⎣∂z/∂ξ ∂z/∂η ∂z/∂ζ⎦
+             *            ⎡∂x/∂ξ ∂x/∂η ∂x/∂ζ⎤
+             * [ξ η ζ]ᵀ → ⎢∂y/∂ξ ∂y/∂η ∂y/∂ζ⎥
+             *            ⎣∂z/∂ξ ∂z/∂η ∂z/∂ζ⎦
              * ```
              *
              * @param[in] point Local point.
@@ -137,7 +139,7 @@ namespace monad {
                 return gradShapeFunctions(point) * nodes;
             }
 
-            /// @brief Quadrature rule for integration.
+            /// @brief Quadrature rule.
             static QuadratureRule quadratureRule() noexcept {
                 return Derived::quadratureRule();
             }
@@ -145,9 +147,11 @@ namespace monad {
             /**
              * @brief Area (2D) or volume (3D).
              *
-             * Computes area/volume via:
+             * Computes the measure as
              *
+             * ```text
              * ∫_Ω|det(J)|dΩ
+             * ```
              *
              * @param[in] nodes Element nodes.
              *

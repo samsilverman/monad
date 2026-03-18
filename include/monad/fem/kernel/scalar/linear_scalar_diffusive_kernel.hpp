@@ -2,9 +2,9 @@
 
 #include <stdexcept>
 #include <Eigen/Core>
+#include "monad/material/transport/linear_transport_material.hpp"
 #include "monad/integration/integrate_matrix.hpp"
 #include "monad/detail/eigen_utils.hpp"
-#include "monad/material/transport/linear_transport_material.hpp"
 
 namespace monad {
 
@@ -12,26 +12,31 @@ namespace monad {
 
         namespace scalar {
 
-            /// @brief Specifies the sign convention relating the physical field G to the scalar potential gradient ∇φ.
+            /// @brief Sign convention for the derived field ∇φ.
             enum class GradientConvention {
-                /// @brief Physical field is defined as field G=−∇φ.
+                /// @brief Derived field is defined as −∇φ.
                 Negative,
-                /// @brief Physical field is defined as field G=∇φ.
+                /// @brief Derived field is defined as ∇φ.
                 Positive
             };
 
             /**
-             * @brief Provides core FEM computations for a linear scalar diffusive element.
+             * @brief Core FEM computations for a linear scalar diffusive element.
              *
-             * This kernel implements the weak form of the scalar diffusion PDE:
+             * This kernel implements the weak form of scalar diffusion:
              *
+             * ```text
              * ∇·J=∇·(K∇φ)=0
+             * ```
              *
-             * where the scalar potentials are decomposed into macroscopic and microscopic components:
+             * where the scalar potentials φ∈ℝ are decomposed into macroscopic and
+             * microscopic components:
              *
+             * ```text
              * φ=φ̄+φ̃
+             * ```
              *
-             * @tparam ElementT Element class (e.g. Quad4).
+             * @tparam ElementT Element type (e.g. Quad4).
              * @tparam C Gradient sign convention (GradientConvention::Negative or Positive).
              */
             template <class ElementT, GradientConvention C>
@@ -46,7 +51,7 @@ namespace monad {
                 /// @brief Gradient sign.
                 static constexpr double GradSign = (C == GradientConvention::Negative ? -1.0 : 1.0);
 
-                using Material = LinearTransportMaterial<Element::Dim>;
+                using Material = material::LinearTransportMaterial<Element::Dim>;
 
                 using Point = typename Element::Point;
                 using NodesMatrix = typename Element::NodesMatrix;
@@ -61,23 +66,20 @@ namespace monad {
                 /**
                  * @brief Element B matrix evaluated at a local point.
                  *
-                 * The B matrix relates an element's nodal scalar potentials φ to scalar gradients at a
-                 * local `point`:
+                 * The B matrix masp nodal scalar potentials φ∈ℝ to
+                 * scalar potential gradients ∇φ∈ℝᵈ at a local `point`:
                  *
+                 * ```text
                  * ∇φ=Bφ
-                 *
-                 * For a D-dimensional element:
-                 *
-                 * - D=2: point=[ξ η]ᵀ
-                 *
-                 * - D=3: point=[ξ η ζ]ᵀ
+                 * ```
                  *
                  * @param[in] point Local point.
                  * @param[in] nodes Element nodes.
                  *
                  * @returns Element B matrix evaluated at `point`.
                  *
-                 * @throws std::invalid_argument if `nodes` define a degenerate or inverted element geometry.
+                 * @throws std::invalid_argument if `nodes` define a degenerate element.
+                 * @throws std::invalid_argument if `nodes` define an inverted element.
                  */
                 static BMatrix bMatrix(const Point &point, const NodesMatrix &nodes) {
                     const auto J = Element::jacobian(point, nodes);
@@ -97,18 +99,21 @@ namespace monad {
                 }
 
                 /**
-                 * @brief Element diffusive stiffness matrix (left-hand side of the discretized weak form) evaluated at a local point.
+                 * @brief Element diffusive stiffness matrix evaluated at a local point.
                  *
-                 * Weak form lhs for an element e:
+                 * For an element e:
                  *
-                 * Kₑ=∫_ΩₑBᵀABdΩₑ
+                 * ```text
+                 * Kₑ=∫_ΩₑBᵀKBdΩₑ
+                 * ```
                  *
                  * @param[in] material Linear transport material.
                  * @param[in] nodes Element nodes.
                  *
                  * @returns Element diffusive stiffness matrix evaluated at `point`.
                  *
-                 * @throws std::invalid_argument if `nodes` define a degenerate or inverted element geometry.
+                 * @throws std::invalid_argument if `nodes` define a degenerate element.
+                 * @throws std::invalid_argument if `nodes` define an inverted element.
                  */
                 static StiffnessMatrix lhs(const Material &material, const NodesMatrix &nodes) {
                     const auto rule = Element::quadratureRule();
@@ -124,25 +129,28 @@ namespace monad {
 
                     StiffnessMatrix K = integration::integrateMatrix(integrand, rule);
 
-                    // Remove numerical artifacts
+                    // Remove numerical asymmetry
                     detail::symmetrize(K);
 
                     return K;
                 }
 
                 /**
-                 * @brief Element source matrix (right-hand side of the discretized weak form) evaluated at a local point.
+                 * @brief Element source matrix evaluated at a local point.
                  *
-                 * Weak form rhs for an element e:
+                 * For an element e:
                  *
+                 * ```text
                  * Fₑ=-∫_ΩₑBᵀAdΩₑ∇φ̄
+                 * ```
                  *
                  * @param[in] material Linear transport material.
                  * @param[in] nodes Element nodes.
                  *
                  * @returns Element source matrix evaluated at `point`.
                  *
-                 * @throws std::invalid_argument if `nodes` define a degenerate or inverted element geometry.
+                 * @throws std::invalid_argument if `nodes` define a degenerate element.
+                 * @throws std::invalid_argument if `nodes` define an inverted element.
                  */
                 static FieldMatrix rhs(const Material &material, const NodesMatrix &nodes) {
                     const auto rule = Element::quadratureRule();
@@ -156,6 +164,7 @@ namespace monad {
                         return B.transpose() * A * J.determinant();
                     };
 
+                    // No need to multiply by ∇φ̄=I for unit macroscopic scalar potential gradients
                     return -integration::integrateMatrix(integrand, rule);
                 }
             };

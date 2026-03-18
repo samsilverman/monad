@@ -6,16 +6,11 @@
 
 using namespace monad::detail;
 
-TEST_CASE("monad::detail: Test arrayToEigen", "[monad]") {
-    const std::array<std::size_t, 3> array{1, 2, 3};
-
-    const Eigen::Vector3i expected(1, 2, 3);
-
-    REQUIRE(arrayToEigen(array) == expected);
-}
-
 TEST_CASE("monad::detail: Test symmetrize/isSymmetric", "[monad]") {
-    Eigen::Matrix3d A = Eigen::Matrix3d::Random();
+    Eigen::Matrix3d A;
+    A << 1, 2, 3,
+         2, 3, 4.001,
+         3, 4, 5;
 
     REQUIRE(!isSymmetric(A));
 

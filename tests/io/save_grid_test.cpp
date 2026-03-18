@@ -2,10 +2,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <catch2/catch_template_test_macros.hpp>
-#include "monad/grid/quad4_grid.hpp"
-#include "monad/grid/quad8_grid.hpp"
-#include "monad/grid/hex8_grid.hpp"
-#include "monad/grid/hex20_grid.hpp"
+#include "monad/grid/grid_aliases.hpp"
 #include "monad/io/save_grid.hpp"
 
 using namespace monad;
@@ -23,13 +20,12 @@ TEMPLATE_LIST_TEST_CASE("monad: Test saveGrid", "[monad]", Types) {
     size.fill(0.5);
 
     TestType grid(resolution, size);
-    grid.setDensitiesRandom();
 
     const std::filesystem::path folder = std::filesystem::path(__FILE__).parent_path();
     std::filesystem::path file = folder / "output.msh";
 
     SECTION("No errors") {
-        saveGrid(grid, file.string(), true);
+        saveGrid(grid, file.string());
 
         REQUIRE(std::filesystem::is_regular_file(file));
 
@@ -39,12 +35,12 @@ TEMPLATE_LIST_TEST_CASE("monad: Test saveGrid", "[monad]", Types) {
     SECTION("Invalid file extension") {
         file = folder / "output.csv";
 
-        REQUIRE_THROWS_AS(saveGrid(grid, file.string(), true), std::invalid_argument);
+        REQUIRE_THROWS_AS(saveGrid(grid, file.string()), std::invalid_argument);
     }
 
     SECTION("Invalid file path") {
         file = folder / "NonExistentDir" / "output.msh";
 
-        REQUIRE_THROWS_AS(saveGrid(grid, file.string(), true), std::runtime_error);
+        REQUIRE_THROWS_AS(saveGrid(grid, file.string()), std::runtime_error);
     }
 }

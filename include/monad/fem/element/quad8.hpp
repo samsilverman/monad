@@ -34,7 +34,9 @@ namespace monad {
             /**
              * @brief Shape functions evaluated at a local point.
              *
+             * ```text
              * [ξ η]ᵀ → [N₁(ξ,η) ... N₈(ξ,η)]ᵀ
+             * ```
              *
              * @param[in] point Local point.
              *
@@ -45,11 +47,9 @@ namespace monad {
             /**
              * @brief Shape function gradients evaluated at a local point.
              *
-             * [ξ η]ᵀ →
-             *
              * ```text
-             * ⎡∂N₁/∂ξ ... ∂N₈/∂ξ⎤
-             * ⎣∂N₁/∂η ... ∂N₈/∂η⎦
+             * [ξ η]ᵀ → ⎡∂N₁/∂ξ ... ∂N₈/∂ξ⎤
+             *          ⎣∂N₁/∂η ... ∂N₈/∂η⎦
              * ```
              *
              * @param[in] point Local point.
@@ -58,7 +58,7 @@ namespace monad {
              */
             static ShapeFuncGradMatrix gradShapeFunctions(const Point &point) noexcept;
 
-            /// @brief Quadrature rule for integration.
+            /// @brief Quadrature rule.
             static QuadratureRule quadratureRule() noexcept;
 
             /// @brief Gmsh element type ID.

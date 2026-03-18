@@ -1,70 +1,81 @@
 #include <tuple>
 #include <stdexcept>
 #include <catch2/catch_template_test_macros.hpp>
-#include "monad/grid/quad4_grid.hpp"
-#include "monad/grid/quad8_grid.hpp"
-#include "monad/grid/hex8_grid.hpp"
-#include "monad/grid/hex20_grid.hpp"
-#include "monad/material/transport/linear_transport_material.hpp"
-#include "monad/solver/scalar/linear_scalar_diffusive_solver.hpp"
+#include "monad/grid/grid_aliases.hpp"
+#include "monad/material/material_aliases.hpp"
+#include "monad/material/bounds.hpp"
+#include "monad/field/field_aliases.hpp"
+#include "monad/solver/solver_aliases.hpp"
 #include "monad/detail/eigen_utils.hpp"
 #include "monad/detail/constants.hpp"
 
 using namespace monad;
 using namespace monad::detail;
-using namespace monad::fem::scalar;
 
-template <class GridT, GradientConvention C>
+template <class GridT, class MaterialT, class DensityFieldT, class SolverT>
 struct TypePair {
     using Grid = GridT;
-    static constexpr GradientConvention Convention = C;
+    using Material = MaterialT;
+    using DensityField = DensityFieldT;
+    using Solver = SolverT;
 };
 
+// Negative sign convention: linear dielectric material
+// Positive sign convention: linear mass diffusive material
 using Types = std::tuple<
-    TypePair<Quad4Grid, GradientConvention::Negative>,
-    TypePair<Quad4Grid, GradientConvention::Positive>,
-    TypePair<Quad8Grid, GradientConvention::Negative>,
-    TypePair<Quad8Grid, GradientConvention::Positive>,
-    TypePair<Hex8Grid, GradientConvention::Negative>,
-    TypePair<Hex8Grid, GradientConvention::Positive>,
-    TypePair<Hex20Grid, GradientConvention::Negative>,
-    TypePair<Hex20Grid, GradientConvention::Positive>
+    TypePair<Quad4Grid, LinearDielectricMaterial2d, DensityField2d, LinearDielectricSolver<Quad4Grid>>,
+    TypePair<Quad4Grid, LinearMassDiffusiveMaterial2d, DensityField2d, LinearMassDiffusiveSolver<Quad4Grid>>,
+    TypePair<Quad8Grid, LinearDielectricMaterial2d, DensityField2d, LinearDielectricSolver<Quad8Grid>>,
+    TypePair<Quad8Grid, LinearMassDiffusiveMaterial2d, DensityField2d, LinearMassDiffusiveSolver<Quad8Grid>>,
+    TypePair<Hex8Grid, LinearDielectricMaterial3d, DensityField3d, LinearDielectricSolver<Hex8Grid>>,
+    TypePair<Hex8Grid, LinearMassDiffusiveMaterial3d, DensityField3d, LinearMassDiffusiveSolver<Hex8Grid>>,
+    TypePair<Hex20Grid, LinearDielectricMaterial3d, DensityField3d, LinearDielectricSolver<Hex20Grid>>,
+    TypePair<Hex20Grid, LinearMassDiffusiveMaterial3d, DensityField3d, LinearMassDiffusiveSolver<Hex20Grid>>
 >;
 
 TEMPLATE_LIST_TEST_CASE("monad::Solver: Test solve", "[monad]", Types) {
     using Grid = typename TestType::Grid;
+    using Material = typename TestType::Material;
+    using DensityField = typename TestType::DensityField;
+    using Solver = typename TestType::Solver;
+
     using Resolution = typename Grid::Resolution;
     using Size = typename Grid::Size;
-    using Element = typename Grid::Element;
-    using Solver = LinearScalarDiffusiveSolver<Grid, Element, TestType::Convention>;
+    using MaterialTensor = typename Material::MaterialTensor;
 
     Resolution resolution;
-    resolution.fill(3);
-    
+    resolution.fill(2);
+
     Size size;
     size.fill(0.5);
 
     Grid grid(resolution, size);
 
-    const LinearTransportMaterial<Element::Dim> material(2.1);
+    MaterialTensor K = MaterialTensor::Random();
+    // Make PSD
+    K = K.transpose() * K;
+    // Make PD
+    K += MaterialTensor::Identity();
+
+    const Material material(K);
+
+    DensityField densityField(resolution);
+
+    const Solver solver;
 
     SECTION("Density=1 → KBar=material") {
-        grid.setDensitiesOnes();
-        const Solver solver(grid, material);
+        densityField.setOnes();
 
-        const auto results = solver.solve();
+        const auto results = solver.solve(grid, densityField, material);
         const auto &KBar = results.KBar;
 
-        const auto expected = material.materialTensor();
-
-        REQUIRE(KBar.isApprox(expected, NUMERICAL_ZERO));
+        REQUIRE(KBar.isApprox(K, NUMERICAL_ZERO));
     }
 
     SECTION("Density=0 → KBar=0") {
-        grid.setDensitiesZeros();
-        const Solver solver(grid, material);
+        densityField.setZeros();
 
-        const auto results = solver.solve();
+        const auto results = solver.solve(grid, densityField, material);
         const auto &KBar = results.KBar;
 
         // Set zero threshold to one order of magnitude larger
@@ -72,18 +83,17 @@ TEMPLATE_LIST_TEST_CASE("monad::Solver: Test solve", "[monad]", Types) {
     }
 
     SECTION("Random density") {
-        grid.setDensitiesRandom(1234);
-        const Solver solver(grid, material);
+        densityField.setRandom(1234);
 
-        auto results = solver.solve();
+        const auto results = solver.solve(grid, densityField, material);
         const auto &KBar = results.KBar;
 
         REQUIRE(isSymmetric(KBar));
         REQUIRE(isPD(KBar));
 
         SECTION("Voigt/Reuss bounds") {
-            const auto voigt = material.voigt(grid);
-            const auto reuss = material.reuss(grid);
+            const auto voigt = voigtBound(material, densityField);
+            const auto reuss = reussBound(material, densityField);
 
             REQUIRE(reuss.trace() <= KBar.trace());
             REQUIRE(KBar.trace() <= voigt.trace());
@@ -93,24 +103,22 @@ TEMPLATE_LIST_TEST_CASE("monad::Solver: Test solve", "[monad]", Types) {
             Resolution shift;
             shift.fill(1);
 
-            grid.translate(shift);
+            densityField.translate(shift);
 
-            const Solver solver2(grid, material);
+            const auto resultsShift = solver.solve(grid, densityField, material);
 
-            results = solver.solve();
-            const auto &KBar2 = results.KBar;
+            const auto &KBarShift = resultsShift.KBar;
 
-            REQUIRE(KBar2.isApprox(KBar, NUMERICAL_ZERO));
+            REQUIRE(KBarShift.isApprox(KBar, NUMERICAL_ZERO));
         }
     }
 
     SECTION("Bad options") {
-        grid.setDensitiesRandom(1234);
-        const Solver solver(grid, material);
+        densityField.setRandom(1234);
 
         SolverOptions options;
         options.maxIterations = 1;
 
-        REQUIRE_THROWS_AS(solver.solve(options), std::runtime_error);
+        REQUIRE_THROWS_AS(solver.solve(grid, densityField, material, options), std::runtime_error);
     }
 }

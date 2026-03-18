@@ -5,34 +5,34 @@
 #include <string>
 #include <Eigen/Core>
 #include <Eigen/IterativeLinearSolvers>
-#include "monad/detail/constants.hpp"
-#include "monad/detail/eigen_utils.hpp"
-#include "monad/grid/grid_base.hpp"
-#include "monad/solver/solver_options.hpp"
+#include "monad/field/density_field.hpp"
 #include "monad/fem/operator/matrix_free_operator.hpp"
-#include "monad/fem/operator/jacobi_preconditioner.hpp"
+#include "monad/detail/eigen_utils.hpp"
+#include "monad/solver/solver_options.hpp"
+#include "monad/solver/jacobi_preconditioner.hpp"
 
 namespace monad {
 
     namespace solver {
 
         /**
-         * @brief Periodic unit cell solver for linear physics problems.
+         * @brief Stateless periodic-cell solver for structured linear homogenization problems.
          *
-         * This class provides a dimension- and physics-agnostic implementation of a
-         * periodic unit cell solver using a matrix-free finite element operator.
-         *
-         * @tparam Grid Grid class (e.g. Quad4Grid).
-         * @tparam Element Element class (e.g. Quad4).
-         * @tparam Physics Physics class (e.g. LinearElasticPhysics2d).
+         * @tparam Grid Grid type (e.g. Quad4Grid).
+         * @tparam Policy Physics policy type (e.g. LinearElasticPolicy<Quad4>).
          */
-        template <class Grid, class Element, class Physics>
+        template <class Grid, class Policy>
         class PeriodicCellSolver {
         public:
-            using Material = typename Physics::Material;
-            using Kernel = typename Physics::Kernel;
-            using OperatorTraits = typename Physics::OperatorTraits;
-            using Operator = fem::MatrixFreeOperator<Grid, Element, OperatorTraits>;
+            using Material = typename Policy::Material;
+            using Kernel = typename Policy::Kernel;
+            using DofTraits = typename Policy::DofTraits;
+            using DensityField = field::DensityField<Grid::Dim>;
+            using Operator = fem::MatrixFreeOperator<Grid, DofTraits>;
+            using DofMap = fem::DofMap<Grid, DofTraits>;
+            using Preconditioner = JacobiPreconditioner<Operator>;
+
+            using MaterialTensor = typename Material::MaterialTensor;
 
             /// @brief Element stiffness matrix type.
             using ElementStiffnessMatrix = typename Kernel::StiffnessMatrix;
@@ -41,126 +41,90 @@ namespace monad {
             using ElementFieldMatrix = typename Kernel::FieldMatrix;
 
             /// @brief Global field matrix type.
-            using FieldMatrix = typename Physics::FieldMatrix;
-
-            /// @brief Homogenized material tensor type.
-            using MaterialTensor = typename Material::MaterialTensor;
+            using FieldMatrix = typename Policy::DofFieldMatrix;
 
             /// @brief Homogenized results type.
-            using Results = typename Physics::Results;
+            using Results = typename Policy::Results;
 
             /**
-             * @brief Constructs a periodic unit cell solver.
-             *
-             * @param[in] grid Periodic unit cell grid.
-             * @param[in] material Base material model.
-             */
-            PeriodicCellSolver(const GridBase<Grid, Element> &grid, const Material &material)
-                : grid_(grid), material_(material) {
-                const auto nodes = grid_.elementNodes(0);
-
-                elementKReference_ = Kernel::lhs(material_, nodes);
-                elementFReference_ = Kernel::rhs(material_, nodes);
-            }
-
-            /// @brief Periodic unit cell grid_.
-            const GridBase<Grid, Element> &grid() const noexcept {
-                return grid_;
-            }
-
-            /// @brief Base material model.
-            const Material &material() const noexcept {
-                return material_;
-            }
-
-            /**
-             * @brief Solves the periodic unit cell problem and computes the homogenized material tensor.
-             *
-             * The solver computes the total field X decomposed as:
-             *
-             * X=X̄+X̃
-             *
-             * - X̄ is the macroscopic field prescribed via uniform macroscopic loading.
-             *
-             * - X̃ is the microscopic field enforcing equilibrium under periodic boundary conditions.
+             * @brief Solves the periodic cell problem.
              *
              * The homogenized material tensor M̄ is then computed via the physics-specific
              * homogenization functional:
              *
              * M̄=1/V∑ₑXₑᵀKₑXₑ
              *
+             * @param[in] grid Grid.
+             * @param[in] densityField Per-element density field defined on `grid`.
+             * @param[in] material Base material.
              * @param[in] options Solver options.
              *
              * @returns Homogenized material tensor.
              *
-             * @throws std::runtime_error if the linear solver fails to converge.
+             * @throws std::invalid_argument if `grid` and `densityField` do not
+             * have the same resolution.
+             * @throws std::runtime_error if the iterative linear solver fails.
              */
-            Results solve(const SolverOptions &options = SolverOptions::defaults()) const {
-                const FieldMatrix XMacro = Physics::macroscopicField(grid_);
-                const FieldMatrix XMicro = microscopicField_(options);
+            Results solve(const Grid &grid, const DensityField &densityField, const Material &material, const SolverOptions &options = {}) const {
+                if (grid.resolution() != densityField.resolution()) {
+                    throw std::invalid_argument("Grid resolution must match density field resolution.");
+                }
+
+                const auto referenceNodes = grid.elementNodes(0);
+                const ElementStiffnessMatrix elementKReference = Kernel::lhs(material, referenceNodes);
+                const ElementFieldMatrix elementFReference = Kernel::rhs(material, referenceNodes);
+
+                const Operator K(grid, densityField, elementKReference);
+                const DofMap dofMap = K.dofMap();
+
+                const FieldMatrix reducedF = buildReducedRhs_(grid, densityField, dofMap, elementFReference);
+                const FieldMatrix reducedXMicro = solveReducedSystem_(K, reducedF, options);
+
+                const FieldMatrix XMicro = expandReducedLhs_(grid, dofMap, reducedXMicro);
+                const FieldMatrix XMacro = Policy::makeMacroscopicFields(grid);
                 const FieldMatrix X = XMacro + XMicro;
 
-                const MaterialTensor MBar = homogenize_(X);
+                const MaterialTensor MBar = homogenize_(grid, densityField, elementKReference, X);
 
-                return Physics::makeResults(MBar, X, XMacro, XMicro, options.fields);
-            }
-
-            /// @brief Equality comparison.
-            bool operator==(const PeriodicCellSolver &other) const noexcept {
-                return material_ == other.material_ && grid_ == other.grid_;
-            }
-
-            /// @brief Inequality comparison.
-            bool operator!=(const PeriodicCellSolver &other) const noexcept {
-                return !(*this == other);
+                return Policy::makeResults(MBar, X, XMacro, XMicro, options.fields);
             }
 
         private:
-            /// @brief Periodic unit cell grid_.
-            GridBase<Grid, Element> grid_;
-
-            /// @brief Base material model.
-            Material material_;
-
-            /// @brief Reference element stiffness matrix for unit density.
-            ElementStiffnessMatrix elementKReference_;
-
-            /// @brief Reference element source matrix for unit density.
-            ElementFieldMatrix elementFReference_;
-
             /**
-             * @brief Builds the reduced right-hand side source matrix.
+             * @brief Builds the reduced source matrix for the microscopic solve.
              *
-             * Constructs the source matrix F in the reduced linear system
+             * Constructs the right-hand side matrix F in
              *
+             * ```text
              * KX̃=F
+             * ```
              *
-             * where K acts only on a reduced set of unconstrained periodic dofs.
+             * on the reduced periodic dof space.
              *
-             * @param[in] K Matrix-free stiffness operator.
+             * @param[in] grid Grid.
+             * @param[in] densityField Per-element density field defined on `grid`.
+             * @param[in] dofMap Reduced periodic dof map.
+             * @param[in] elementFReference Reference element source matrix for unit density.
              *
-             * @returns Reduced right-hand side source matrix.
+             * @returns Reduced periodic source matrix.
              */
-            FieldMatrix buildReducedRhs_(const Operator &K) const noexcept {
-                const std::size_t numPeriodicNodes = grid_.numPeriodicNodes();
-                const std::size_t numPeriodicDofs = OperatorTraits::NumNodeDofs * numPeriodicNodes;
-                const std::size_t numReducedDofs = numPeriodicDofs - OperatorTraits::NumFixedDofs;
+            FieldMatrix buildReducedRhs_(const Grid &grid, const DensityField &densityField, const DofMap &dofMap, const ElementFieldMatrix &elementFReference) const noexcept {
+                const int numReducedDofs = static_cast<int>(dofMap.numReducedDofs());
+                const int numLoadCases = static_cast<int>(Policy::NumLoadCases);
 
-                FieldMatrix reducedF = FieldMatrix::Zero(static_cast<int>(numReducedDofs), static_cast<int>(Physics::NumMacroFields));
+                FieldMatrix reducedF = FieldMatrix::Zero(numReducedDofs, numLoadCases);
 
-                const auto &elementDofs = K.elementDofs();
+                for (std::size_t i = 0; i < grid.numElements(); ++i) {
+                    const auto &reducedDofs = dofMap.reducedDofs(i);
+                    const double density = densityField.getDensity(i);
+                    const ElementFieldMatrix elementF = density * elementFReference;
 
-                for (std::size_t i = 0; i < grid_.numElements(); ++i) {
-                    const double density = grid_.getDensity(i);
-                    const ElementFieldMatrix elementF = density * elementFReference_;
+                    for (std::size_t j = 0; j < reducedDofs.size(); ++j) {
+                        const int reducedDof = reducedDofs[j];
+                        const int localReducedDof = static_cast<int>(j);
 
-                    const auto &dofs = elementDofs[i];
-
-                    for (std::size_t j = 0; j < dofs.size(); ++j) {
-                        const int dof = dofs[j];
-
-                        if (dof >= 0) {
-                            reducedF(dof, Eigen::indexing::all) += elementF.row(static_cast<int>(j));
+                        if (reducedDof >= 0) {
+                            reducedF.row(reducedDof) += elementF.row(localReducedDof);
                         }
                     }
                 }
@@ -169,49 +133,98 @@ namespace monad {
             }
 
             /**
-             * @brief Builds the expanded left-hand side microscopic field.
+             * @brief Solves the reduced microscopic system.
              *
-             * Expands the microscopic field matrix X̃ in the reduced linear system
+             * Solves
              *
+             * ```text
              * KX̃=F
+             * ```
              *
-             * from a reduced set of unconstrained periodic dofs to global dofs.
+             * on the reduced periodic dof space.
              *
-             * @param[in] reducedX Reduced microscopic field.
+             * @param[in] K Matrix-free operator for the reduced periodic stiffness matrix.
+             * @param[in] reducedF Reduced periodic source matrix.
+             * @param[in] options Solver options.
              *
-             * @returns Expanded left-hand side microscopic field.
+             * @returns Reduced microscopic field matrix.
+             *
+             * @throws std::runtime_error if the iterative solver fails.
              */
-            FieldMatrix buildExpandedLhs_(const FieldMatrix &reducedX) const noexcept {
-                // Expand reduced to periodic
-                const std::size_t numPeriodicNodes = grid_.numPeriodicNodes();
-                const std::size_t numPeriodicDofs = OperatorTraits::NumNodeDofs * numPeriodicNodes;
-                const std::size_t numReducedDofs = numPeriodicDofs - OperatorTraits::NumFixedDofs;
+            FieldMatrix solveReducedSystem_(const Operator &K, const FieldMatrix &reducedF, const SolverOptions &options) const {
+                Eigen::ConjugateGradient<Operator, Eigen::Lower | Eigen::Upper, Preconditioner> cg;
 
-                FieldMatrix periodicX = FieldMatrix::Zero(static_cast<int>(numPeriodicDofs), static_cast<int>(Physics::NumMacroFields));
+                cg.setMaxIterations(options.maxIterations);
+                cg.setTolerance(options.tolerance);
+                cg.compute(K);
 
-                for (std::size_t i = 0; i < numReducedDofs; ++i) {
-                    const std::size_t iExpanded = OperatorTraits::expandedDof(i, numPeriodicNodes);
-                    periodicX.row(static_cast<int>(iExpanded)) = reducedX.row(static_cast<int>(i));
+                FieldMatrix reducedXMicro = cg.solve(reducedF);
+
+                if (cg.info() != Eigen::Success) {
+                    std::string message = "Iterative solver failed";
+
+                    if (cg.info() == Eigen::NoConvergence) {
+                        message += ": No convergence before the iteration limit.";
+                    }
+                    else if (cg.info() == Eigen::NumericalIssue) {
+                        message += ": Numerical issue encountered during the solve.";
+                    }
+
+                    throw std::runtime_error(message);
                 }
 
-                // Expand periodic to global
-                const std::size_t numNodes = grid_.numNodes();
-                const std::size_t numDofs = OperatorTraits::NumNodeDofs * numNodes;
+                return reducedXMicro;
+            }
 
-                FieldMatrix X = FieldMatrix::Zero(static_cast<int>(numDofs), static_cast<int>(Physics::NumMacroFields));
+            /**
+             * @brief Expands the reduced periodic microscopic field matrix to the global dof space.
+             *
+             * Expands the left-hand side matrix X̃ in
+             *
+             * ```text
+             * KX̃=F
+             * ```
+             *
+             * to the global dof space.
+             *
+             * @param[in] grid Grid.
+             * @param[in] dofMap Reduced periodic dof map.
+             * @param[in] reducedX Reduced microscopic field matrix.
+             *
+             * @returns Global microscopic field matrix.
+             */
+            FieldMatrix expandReducedLhs_(const Grid &grid, const DofMap &dofMap, const FieldMatrix &reducedX) const noexcept {
+                // Expand reduced periodic dofs to periodic dofs
+                const std::size_t numPeriodicNodes = grid.numPeriodicNodes();
+                const std::size_t numPeriodicDofs = DofTraits::NumNodeDofs * numPeriodicNodes;
 
-                for (std::size_t i = 0; i < grid_.numElements(); ++i) {
-                    const auto element = grid_.element(i);
-                    const auto periodicElement = grid_.periodicElement(i);
+                FieldMatrix periodicX = FieldMatrix::Zero(static_cast<int>(numPeriodicDofs), static_cast<int>(Policy::NumLoadCases));
 
-                    const auto dofs = OperatorTraits::dofs(element, numNodes);
-                    const auto periodicDofs = OperatorTraits::dofs(periodicElement, numPeriodicNodes);
+                for (std::size_t i = 0; i < dofMap.numReducedDofs(); ++i) {
+                    const std::size_t reducedDof = i;
+                    const std::size_t periodicDof = dofMap.reducedToPeriodicDof(i);
 
-                    for (std::size_t j = 0; j < dofs.size(); ++j) {
-                        const std::size_t dof = dofs[j];
+                    periodicX.row(static_cast<int>(periodicDof)) = reducedX.row(static_cast<int>(reducedDof));
+                }
+
+                // Expand periodic dofs to global dofs
+                const std::size_t numNodes = grid.numNodes();
+                const std::size_t numDofs = DofTraits::NumNodeDofs * numNodes;
+
+                FieldMatrix X = FieldMatrix::Zero(static_cast<int>(numDofs), static_cast<int>(Policy::NumLoadCases));
+
+                for (std::size_t i = 0; i < grid.numElements(); ++i) {
+                    const auto element = grid.element(i);
+                    const auto periodicElement = grid.periodicElement(i);
+
+                    const auto globalDofs = DofTraits::elementDofs(element, numNodes);
+                    const auto periodicDofs = DofTraits::elementDofs(periodicElement, numPeriodicNodes);
+
+                    for (std::size_t j = 0; j < globalDofs.size(); ++j) {
+                        const std::size_t globalDof = globalDofs[j];
                         const std::size_t periodicDof = periodicDofs[j];
 
-                        X.row(static_cast<int>(dof)) = periodicX.row(static_cast<int>(periodicDof));
+                        X.row(static_cast<int>(globalDof)) = periodicX.row(static_cast<int>(periodicDof));
                     }
                 }
 
@@ -219,83 +232,47 @@ namespace monad {
             }
 
             /**
-             * @brief Microscopic correction field.
-             *
-             * Solves the reduced linear system:
-             *
-             * KX̃=F
-             *
-             * using a matrix-free solver then expands
-             * the solution to global dofs.
-             *
-             * @param[in] options Solver options.
-             *
-             * @returns Microscopic correction field.
-             *
-             * @throws std::runtime_error if the solver fails to converge.
-             *
-             * @note If the global stiffness matric is symmetric, conjugate gradient
-             * is used, otherwise biconjugate gradient stabilized (BiCSSTAB) is used.
-             */
-            FieldMatrix microscopicField_(const SolverOptions &options) const {
-                const Operator K(grid_, elementKReference_);
-                const FieldMatrix reducedF = buildReducedRhs_(K);
-
-                using preconditioner = fem::JacobiPreconditioner<Operator>;
-
-                Eigen::ConjugateGradient<Operator, Eigen::Lower | Eigen::Upper, preconditioner> cg;
-                cg.setMaxIterations(options.maxIterations);
-                cg.setTolerance(options.tolerance);
-                cg.compute(K);
-
-                FieldMatrix reducedX = cg.solve(reducedF);
-
-                if (cg.info() != Eigen::Success) {
-                    std::string error_message = "Solver failed to converge.";
-                    if (cg.info() == Eigen::NoConvergence) {
-                        error_message += " No Convergence - Max iterations reached or tolerance not met.";
-                    }
-                    else if (cg.info() == Eigen::NumericalIssue) {
-                        error_message += " Numerical Issue - Solver encountered stability problems.";
-                    }
-
-                    throw std::runtime_error(error_message);
-                }
-
-                return buildExpandedLhs_(reducedX);
-            }
-
-            /**
              * @brief Homogenized material tensor.
              *
-             * The homogenized material tensor M̄ is obtained via the Hill-Mandel lemma,
+             * Using the total field matrix X, the homogenized material tensor M̄
+             * is computed  via the Hill-Mandel lemma:
              *
+             * ```text
              * M̄=1/V∑ₑXₑᵀKₑXₑ
+             * ```
              *
-             * where the total field X is the sum of the macroscopic and microscopic components, X=X̄+X̃.
-             *
-             * @param[in] X Nodal total field.
+             * @param[in] grid Grid.
+             * @param[in] densityField Per-element density field defined on `grid`.
+             * @param[in] elementKReference Reference element stiffness matrix for unit density.
+             * @param[in] X Global total field matrix.
              *
              * @returns Homogenized material tensor.
              */
-            MaterialTensor homogenize_(const FieldMatrix &X) const {
+            MaterialTensor homogenize_(const Grid &grid, const DensityField &densityField, const ElementStiffnessMatrix &elementKReference, const FieldMatrix &X) const {
                 MaterialTensor MBar = MaterialTensor::Zero();
 
-                const std::size_t numNodes = grid_.numNodes();
+                const std::size_t numNodes = grid.numNodes();
 
-                for (std::size_t i = 0; i < grid_.numElements(); ++i) {
-                    const double density = grid_.getDensity(i);
-                    const auto elementK = density * elementKReference_;
-                    const auto element = grid_.element(i);
-                    const auto dofs = OperatorTraits::dofs(element, numNodes);
-                    const auto elementX = X(detail::arrayToEigen(dofs), Eigen::indexing::all);
+                for (std::size_t i = 0; i < grid.numElements(); ++i) {
+                    const double density = densityField.getDensity(i);
+                    const auto elementK = density * elementKReference;
+                    const auto element = grid.element(i);
+                    const auto dofs = DofTraits::elementDofs(element, numNodes);
+
+                    ElementFieldMatrix elementX;
+
+                    for (std::size_t j = 0; j < dofs.size(); ++j) {
+                        const std::size_t dof = dofs[j];
+                        const std::size_t localDof = j;
+                        elementX.row(static_cast<int>(localDof)) = X.row(static_cast<int>(dof));
+                    }
 
                     MBar.noalias() += elementX.transpose() * elementK * elementX;
                 }
 
-                MBar /= grid_.measure();
+                MBar /= grid.measure();
 
-                // Remove numerical artifacts
+                // Remove numerical asymmetry
                 detail::symmetrize(MBar);
 
                 return MBar;

@@ -10,12 +10,12 @@ namespace monad {
         namespace gmsh {
 
             /**
-             * @brief Writes the Gmsh file `$Elements` section.
+             * @brief Writes the Gmsh `$Elements` section.
              *
-             * @tparam Grid Grid class (e.g. Quad4Grid).
+             * @tparam Grid Grid type (e.g. Quad4Grid).
              *
              * @param[in,out] os Output stream.
-             * @param[in] grid Periodic unit cell grid.
+             * @param[in] grid Grid.
              *
              * @note Gmsh documentation: https://gmsh.info/doc/texinfo/gmsh.html#MSH-file-format
              */

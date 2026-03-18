@@ -1,46 +1,40 @@
 #pragma once
 
 #include <cstddef>
-#include <array>
-#include <vector>
-#include <cmath>
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
-#include "monad/detail/constants.hpp"
+#include "monad/field/density_field.hpp"
+#include "monad/fem/operator/dof_map.hpp"
 #include "monad/detail/eigen_utils.hpp"
-#include "monad/grid/grid_base.hpp"
 
 namespace monad {
 
     namespace fem {
 
         /**
-         * @brief Matrix-free operator for the global stiffness matrix.
+         * @brief Matrix-free operator for the reduced global stiffness matrix.
          *
-         * The operator represents the action of the global stiffness matrix
-         * on a vector without explicitly assembling the matrix and is defined
-         * on the reduced set of unconstrained periodic dofs.
+         * This class applies the global stiffness operator without explicitly
+         * assembling the global matrix.
          *
-         * @tparam Grid Grid class (e.g. Quad4Grid).
-         * @tparam Element Element class (e.g. Quad4).
-         * @tparam Traits Matrix free operator traits class (e.g. LinearElasticMatrixFreeOperatorTraits<2>).
+         * @tparam Grid Grid type (e.g. Quad4Grid).
+         * @tparam Traits Dof traits type (e.g. LinearElasticDofTraits<2>).
          *
          * @note Inspiration: https://libeigen.gitlab.io/eigen/docs-nightly/group__MatrixfreeSolverExample.html
          */
-        template <class Grid, class Element, class Traits>
-        class MatrixFreeOperator : public Eigen::EigenBase<MatrixFreeOperator<Grid, Element, Traits>> {
+        template <class Grid, class Traits>
+        class MatrixFreeOperator : public Eigen::EigenBase<MatrixFreeOperator<Grid, Traits>> {
         public:
-            static_assert(Element::Dim == Grid::Dim, "Element spatial dimension must equal grid spatial dimension.");
+            using Element = typename Grid::Element;
 
             /// @brief Number of dofs per element.
             static constexpr int NumElementDofs = Element::NumNodes * Traits::NumNodeDofs;
 
-            using ElementsList = typename GridBase<Grid, Element>::ElementsList;
-            using DensityList = typename GridBase<Grid, Element>::DensityList;
-            using ElementDofList = std::vector<std::array<int, NumElementDofs>>;
+            /// @brief Element dof vector type.
+            using DofVector = Eigen::Vector<double, NumElementDofs>;
 
             /// @brief Element stiffness matrix type.
             using StiffnessMatrix = Eigen::Matrix<double, NumElementDofs, NumElementDofs>;
@@ -55,73 +49,29 @@ namespace monad {
             };
 
             /**
-             * @brief Constructs the matrix-free operator.
+             * @brief Constructs a matrix-free operator.
              *
-             * @param[in] grid Periodic unit cell grid.
+             * @param[in] grid Grid.
+             * @param[in] densityField Per-element density field defined on `grid`.
              * @param[in] elementKReference Reference element stiffness matrix for unit density.
-             */
-            MatrixFreeOperator(const GridBase<Grid, Element> &grid, const StiffnessMatrix &elementKReference)
-                : elementKReference_(elementKReference), elements_(grid.periodicElements()), densities_(grid.densities()) {
-                const std::size_t numPeriodicNodes = grid.numPeriodicNodes();
-                const std::size_t numReducedDofs = Traits::NumNodeDofs * numPeriodicNodes - Traits::NumFixedDofs;
-
-                numRows_ = static_cast<int>(numReducedDofs);
-                numCols_ = numRows_;
-
-                // Precompute global-reduced dof mapping
-                // Fixed dofs are marked with -1 and skipped during gather/scatter
-                const std::size_t numElements = elements_.size();
-                elementDofs_.resize(numElements);
-
-                for (std::size_t i = 0; i < numElements; ++i) {
-                    auto &element = elements_[i];
-                    const auto dofs = Traits::dofs(element, numPeriodicNodes);
-
-                    for (std::size_t j = 0; j < dofs.size(); ++j) {
-                        const std::size_t dof = dofs[j];
-                        if (Traits::isFixedDof(dof, numPeriodicNodes)) {
-                            elementDofs_[i][j] = -1;
-                        }
-                        else {
-                            const std::size_t reducedDof = Traits::reducedDof(dof, numPeriodicNodes);
-                            elementDofs_[i][j] = static_cast<int>(reducedDof);
-                        }
-                    }
-                }
-            }
-
-            /// @brief Reference element stiffness matrix for unit density.
-            const StiffnessMatrix &elementKReference() const noexcept {
-                return elementKReference_;
-            }
-
-            /// @brief Periodic node indices for all elements.
-            const ElementsList &elements() const noexcept {
-                return elements_;
-            }
-
-            /// @brief Material densities for all elements.
-            const DensityList &densities() const noexcept {
-                return densities_;
-            }
-
-            /**
-             * @brief Reduced dofs for all elements.
              *
-             * @note Fixed dofs are set to -1.
+             * @throws std::invalid_argument if `grid` and `densityField` do not have the same resolution.
              */
-            const ElementDofList &elementDofs() const noexcept {
-                return elementDofs_;
+            MatrixFreeOperator(const Grid &grid, const field::DensityField<Grid::Dim> &densityField, const StiffnessMatrix &elementKReference)
+                : densityField_(densityField), dofMap_(grid), elementKReference_(elementKReference) {
+                if (grid.resolution() != densityField_.resolution()) {
+                    throw std::invalid_argument( "Grid resolution must match density field resolution.");
+                }
             }
 
             /// @brief Number of rows.
             int rows() const noexcept {
-                return numRows_;
+                return static_cast<int>(dofMap_.numReducedDofs());
             }
 
             /// @brief Number of columns.
             int cols() const noexcept {
-                return numCols_;
+                return static_cast<int>(dofMap_.numReducedDofs());
             }
 
             /// @brief `true` if the matrix-free operator is symmetric, `false` otherwise.
@@ -134,43 +84,95 @@ namespace monad {
                 return detail::isPSD(elementKReference_);
             }
 
+            /// @brief Per-element density field.
+            const field::DensityField<Grid::Dim> &densityField() const noexcept {
+                return densityField_;
+            };
+
+            /// @brief Reduced periodic dof map.
+            const DofMap<Grid, Traits> &dofMap() const noexcept {
+                return dofMap_;
+            }
+
+            /// @brief Reference element stiffness matrix for unit density.
+            const StiffnessMatrix& elementKReference() const noexcept {
+                return elementKReference_;
+            }
+
             /**
-             * @brief Overloads the multiplication operator to define the matrix-vector product y=Kx.
+             * @brief Matrix-vector multiplication Kx=y.
              *
-             * @tparam Rhs Type of the right-hand side vector.
+             * @tparam Lhs Type of the left-hand side vector x.
+             * @tparam Rhs Type of the right-hand side vector y.
              *
-             * @param[in] x Right-hand side vector.
-             *
-             * @returns Product Kx.
+             * @param[in] lhs Left-hand side vector x.
+             * @param[in,out] rhs Right-hand side vector y.
              */
-            template <typename Rhs>
-            Eigen::Product<MatrixFreeOperator, Rhs, Eigen::AliasFreeProduct>
-            operator*(const Eigen::MatrixBase<Rhs> &x) const {
-                return Eigen::Product<MatrixFreeOperator, Rhs, Eigen::AliasFreeProduct>(*this, x.derived());
+            template <typename Lhs, typename Rhs>
+            void apply(const Eigen::MatrixBase<Lhs> &lhs, Rhs &rhs) const {
+#ifdef _OPENMP
+#ifdef DEFAULT_OMP_NUM_THREADS
+                omp_set_num_threads(DEFAULT_OMP_NUM_THREADS);
+#endif
+                #pragma omp parallel for schedule(static)
+#endif
+                for (std::size_t i = 0; i < dofMap_.size(); ++i) {
+                    const auto &reducedDofs = dofMap_.reducedDofs(i);
+                    const double density = densityField_.getDensity(i);
+
+                    // Gather the element dof vector from the reduced periodic vector.
+                    // Fixed dofs are represented by -1 in the map and are treated as zero.
+                    DofVector x;
+
+                    for (std::size_t j = 0; j < reducedDofs.size(); ++j) {
+                        const int reducedDof = reducedDofs[j];
+                        const int localReducedDof = static_cast<int>(j);
+
+                        x(localReducedDof) = (reducedDof >= 0) ? lhs(reducedDof) : 0.0;
+                    }
+
+                    // Apply the density-scaled reference element stiffness
+                    const DofVector y = density * (elementKReference_ * x);
+
+                    // Scatter the local contribution back into the reduced global vector
+                    for (std::size_t j = 0; j < reducedDofs.size(); ++j) {
+                        const int reducedDof = reducedDofs[j];
+                        const int localReducedDofs = static_cast<int>(j);
+
+                        if (reducedDof >= 0) {
+#ifdef _OPENMP
+                            #pragma omp atomic
+#endif
+                            rhs(reducedDof) += y(localReducedDofs);
+                        }
+                    }
+                }
+            }
+
+            /**
+             * @brief Overloaded operator for matrix-vector multiplication y=Kx.
+             *
+             * @tparam Lhs Type of the right-hand side vector x.
+             *
+             * @param[in] x Left-hand side vector x.
+             *
+             * @returns Matrix-vector product Kx.
+             */
+            template <typename Lhs>
+            Eigen::Product<MatrixFreeOperator, Lhs, Eigen::AliasFreeProduct>
+            operator*(const Eigen::MatrixBase<Lhs> &x) const {
+                return Eigen::Product<MatrixFreeOperator, Lhs, Eigen::AliasFreeProduct>(*this, x.derived());
             }
 
         private:
+            /// @brief Per-element density field.
+            const field::DensityField<Grid::Dim> &densityField_;
+
+            /// @brief Reduced periodic dof map.
+            DofMap<Grid, Traits> dofMap_;
+
             /// @brief Reference element stiffness matrix for unit density.
             const StiffnessMatrix &elementKReference_;
-
-            /// @brief Number of rows.
-            int numRows_;
-
-            /// @brief Number of columns.
-            int numCols_;
-
-            /// @brief Periodic node indices for all elements.
-            ElementsList elements_;
-
-            /// @brief Material densities for all elements.
-            DensityList densities_;
-
-            /**
-             * @brief Reduced dofs for all elements.
-             *
-             * @note Fixed dofs are set to -1.
-             */
-            ElementDofList elementDofs_;
         };
 
     } // namespace fem
@@ -182,109 +184,58 @@ namespace Eigen {
     namespace internal {
 
         /**
-         * @brief This step informs Eigen's expression system that MatrixFreeOperator should be treated similarly to Eigen::SparseMatrix.
+         * @brief Eigen traits specialization for `MatrixFreeOperator`.
          *
-         * @tparam Grid Grid class (e.g. Quad4Grid).
-         * @tparam Element Element class (e.g. Quad4).
-         * @tparam Traits Matrix free operator traits class (e.g. LinearElasticMatrixFreeOperatorTraits).
+         * This tells Eigen to treat `MatrixFreeOperator` like a sparse matrix in
+         * expression templates.
+         *
+         * @tparam Grid Grid type (e.g. Quad4Grid).
+         * @tparam Traits Dof traits type (e.g. LinearElasticDofTraits<2>).
          *
          * @note Inspiration: https://libeigen.gitlab.io/eigen/docs-nightly/group__MatrixfreeSolverExample.html
          */
-        template <class Grid, class Element, class Traits>
-        struct traits<monad::fem::MatrixFreeOperator<Grid, Element, Traits>> : public Eigen::internal::traits<Eigen::SparseMatrix<double>> {};
+        template <class Grid, class Traits>
+        struct traits<monad::fem::MatrixFreeOperator<Grid, Traits>> : public Eigen::internal::traits<Eigen::SparseMatrix<double>> {};
 
         /**
-         * @brief Specializes Eigen's product implementation for the matrix-vector multiplication Kx.
+         * @brief  Eigen product specialization for matrix-vector multiplication.
          *
-         * @tparam Grid Grid class (e.g. Quad4Grid).
-         * @tparam Element Element class (e.g. Quad4).
-         * @tparam Traits Matrix free operator traits class (e.g. LinearElasticMatrixFreeOperatorTraits).
-         * @tparam Rhs Type of the right-hand side vector.
+         * @tparam Grid Grid type (e.g. Quad4Grid).
+         * @tparam Traits Dof traits type (e.g. LinearElasticDofTraits<2>).
+         * @tparam Lhs Type of the left-hand side vector.
          *
          * @note Inspiration: https://libeigen.gitlab.io/eigen/docs-nightly/group__MatrixfreeSolverExample.html
          */
-        template <class Grid, class Element, class Traits, typename Rhs>
+        template <class Grid, class Traits, typename Lhs>
         struct generic_product_impl<
-            monad::fem::MatrixFreeOperator<Grid, Element, Traits>,
-            Rhs,
+            monad::fem::MatrixFreeOperator<Grid, Traits>,
+            Lhs,
             SparseShape,
             DenseShape,
             GemvProduct // General matrix-vector product
-            > : generic_product_impl_base<monad::fem::MatrixFreeOperator<Grid, Element, Traits>, Rhs,
-                                          generic_product_impl<monad::fem::MatrixFreeOperator<Grid, Element, Traits>, Rhs>> {
-            using Operator = typename monad::fem::MatrixFreeOperator<Grid, Element, Traits>;
-            using Scalar = typename Product<Operator, Rhs>::Scalar;
+            > : generic_product_impl_base<monad::fem::MatrixFreeOperator<Grid, Traits>, Lhs,
+                                          generic_product_impl<monad::fem::MatrixFreeOperator<Grid, Traits>, Lhs>> {
+            using Operator = typename monad::fem::MatrixFreeOperator<Grid, Traits>;
+            using Scalar = typename Product<Operator, Lhs>::Scalar;
 
             /**
-             * @brief Implements the core matrix-vector multiplication y=Kx.
+             * @brief Matrix-vector multiplication Kx=y.
              *
-             * @tparam Dest The type of the destination vector y.
+             * @tparam Rhs Type of the right-hand side vector y.
              *
-             * @param[in,out] dst Destination vector y.
-             * @param[in] lhs Matrix-free operator K.
-             * @param[in] rhs Right-hand side vector x.
+             * @param[in,out] rhs Right-hand side vector y.
+             * @param[in] K Matrix-free operator.
+             * @param[in] lhs Left-hand side vector x.
              * @param[in] alpha Scaling factor (must be 1).
              *
              * @note Inspiration: https://libeigen.gitlab.io/eigen/docs-nightly/group__MatrixfreeSolverExample.html
              */
-            template <typename Dest>
-            static void scaleAndAddTo(Dest &dst, const Operator &lhs, const Rhs &rhs, const Scalar &alpha) {
+            template <typename Rhs>
+            static void scaleAndAddTo(Rhs &rhs, const Operator &K, const Lhs &lhs, const Scalar &alpha) {
                 eigen_assert(alpha == Scalar(1) && "scaling is not implemented");
                 EIGEN_ONLY_USED_FOR_DEBUG(alpha);
 
-                using DofVector = Eigen::Vector<double, Operator::NumElementDofs>;
-
-                const auto &elementKReference = lhs.elementKReference();
-                const auto &elements = lhs.elements();
-                const auto &densities = lhs.densities();
-                const auto &elementDofs = lhs.elementDofs();
-
-#ifdef _OPENMP
-#ifdef DEFAULT_OMP_NUM_THREADS
-                omp_set_num_threads(DEFAULT_OMP_NUM_THREADS);
-#endif
-                #pragma omp parallel for schedule(static)
-#endif
-                for (std::size_t i = 0; i < elements.size(); ++i) {
-                    const double density = densities[i];
-                    const auto &dofs = elementDofs[i];
-
-                    // --- Gather ---
-                    // Assemble the local vector x from the reduced global vector rhs.
-                    // Fixed dofs are treated as zero.
-                    DofVector x;
-
-                    for (std::size_t j = 0; j < dofs.size(); ++j) {
-                        const int globalDof = dofs[j];
-                        const int localDof = static_cast<int>(j);
-
-                        if (globalDof >= 0) {
-                            x(localDof) = rhs(globalDof);
-                        }
-                        else {
-                            x(localDof) = 0.0;
-                        }
-                    }
-
-                    // --- Apply ---
-                    // Apply the element stiffness Kx (scaled by material density).
-                    const DofVector y = density * (elementKReference * x);
-
-                    // --- Scatter ---
-                    // Accumulate local element Kx contributions into the reduced global vector dst.
-                    for (std::size_t j = 0; j < dofs.size(); ++j) {
-                        const int globalDof = dofs[j];
-                        const int localDof = static_cast<int>(j);
-
-                        if (globalDof >= 0) {
-
-#ifdef _OPENMP
-                            #pragma omp atomic
-#endif
-                            dst(globalDof) += y(localDof);
-                        }
-                    }
-                }
+                K.apply(lhs, rhs);
             }
         };
 

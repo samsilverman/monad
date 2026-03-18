@@ -7,30 +7,46 @@ namespace monad {
     namespace detail {
 
         /**
-         * @brief Arithmetic mean for a list of scalar values.
+         * @brief Arithmetic mean of a list of scalar values.
          *
-         * Given a collection of values {x₁,x₂,...,xₙ}, the arithmetic mean is defined as:
+         * Given values
          *
+         * ```text
+         * {x₁, x₂, ..., xₙ}
+         * ```
+         * 
+         * the arithmetic mean is defined as:
+         *
+         * ```text
          * (1/n)∑ᵢxᵢ
+         * ```
          *
-         * @param[in] x List of scalar values.
+         * @param[in] x Values.
          *
-         * @returns Arithmetic mean for a list of scalar values.
+         * @returns Arithmetic mean of `x`.
          */
         double arithmeticMean(const std::vector<double> &x) noexcept;
 
         /**
-         * @brief Harmonic mean for a list of scalar values.
+         * @brief Harmonic mean of a list of scalar values.
          *
-         * Given a collection of values {x₁,x₂,...,xₙ}, the harmonic mean is defined as:
+         * Given values
          *
+         * ```text
+         * {x₁,x₂,...,xₙ}
+         * ```
+         *
+         * the harmonic mean is defined as:
+         *
+         * ```text
          * n/∑ᵢ(1/xᵢ)
+         * ```
          *
-         * @param[in] x List of scalar values.
+         * @param[in] x Values.
          *
-         * @returns Harmonic mean for a list of scalar values.
+         * @returns Harmonic mean of `x`.
          *
-         * @throws std::invalid_argument if any entry in `x` is zero.
+         * @throws std::invalid_argument if any entry of `x` is zero.
          */
         double harmonicMean(const std::vector<double> &x);
 

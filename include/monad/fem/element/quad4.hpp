@@ -7,7 +7,7 @@ namespace monad {
     namespace fem {
 
         /**
-         * @brief 4-node quadrilateral (Quad4) finite element.
+         * @brief 4-node quadrilateral (Quad4) element.
          *
          * The Quad4 element uses bilinear shape-functions on ξ,η∈[-1,1].
          *
@@ -34,7 +34,9 @@ namespace monad {
             /**
              * @brief Shape functions evaluated at a local point.
              *
+             * ```text
              * [ξ η]ᵀ → [N₁(ξ,η) ... N₄(ξ,η)]ᵀ
+             * ```
              *
              * @param[in] point Local point.
              *
@@ -45,11 +47,9 @@ namespace monad {
             /**
              * @brief Shape function gradients evaluated at a local point.
              *
-             * [ξ η]ᵀ →
-             *
              * ```text
-             * ⎡∂N₁/∂ξ ... ∂N₄/∂ξ⎤
-             * ⎣∂N₁/∂η ... ∂N₄/∂η⎦
+             * [ξ η]ᵀ → ⎡∂N₁/∂ξ ... ∂N₄/∂ξ⎤
+             *          ⎣∂N₁/∂η ... ∂N₄/∂η⎦
              * ```
              *
              * @param[in] point Local point.
@@ -58,7 +58,7 @@ namespace monad {
              */
             static ShapeFuncGradMatrix gradShapeFunctions(const Point &point) noexcept;
 
-            /// @brief Quadrature rule for integration.
+            /// @brief Quadrature rule.
             static QuadratureRule quadratureRule() noexcept;
 
             /// @brief Gmsh element type ID.

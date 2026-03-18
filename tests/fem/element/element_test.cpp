@@ -1,8 +1,8 @@
 #include <tuple>
+#include <type_traits>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <catch2/matchers/catch_matchers_vector.hpp>
 #include "monad/fem/element/quad4.hpp"
 #include "monad/fem/element/quad8.hpp"
 #include "monad/fem/element/hex8.hpp"
@@ -118,7 +118,7 @@ TEMPLATE_LIST_TEST_CASE("monad::fem::ElementBase Test quadratureRule", "[monad]"
             expected = analyticIntegral(p, p, p);
         }
 
-        auto integrand = [p](const Point &point) -> double {
+        auto integrand = [&](const Point &point) -> double {
             if constexpr (TestType::Dim == 2) {
                 return numericIntegrand(point, p, p);
             }

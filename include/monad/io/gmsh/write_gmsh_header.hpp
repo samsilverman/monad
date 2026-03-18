@@ -9,7 +9,7 @@ namespace monad {
         namespace gmsh {
 
             /**
-             * @brief Writes the Gmsh file `$MeshFormat` section.
+             * @brief Writes the Gmsh `$MeshFormat` section.
              *
              * @param[in,out] os Output stream.
              *

@@ -3,7 +3,6 @@
 #include <stdexcept>
 #include <Eigen/Core>
 #include "monad/material/mechanical/linear_elastic_material.hpp"
-#include "monad/fem/kernel/mechanical/linear_elastic_kernel_traits.hpp"
 #include "monad/integration/integrate_matrix.hpp"
 #include "monad/detail/eigen_utils.hpp"
 
@@ -14,17 +13,22 @@ namespace monad {
         namespace mechanical {
 
             /**
-             * @brief Provides core FEM computations for a linear elastic element.
+             * @brief Core FEM computations for a linear elastic element.
              *
-             * This kernel implements the weak form of the linear elastic PDE:
+             * This kernel implements the weak form of the linear elasticity:
              *
+             * ```text
              * ∇·σ=∇·(Cε)=0
+             * ```
              *
-             * where the displacements are decomposed into macroscopic and microscopic components:
+             * where the displacements u∈ℝᵈ are decomposed into macroscopic and
+             * microscopic components:
              *
+             * ```text
              * u=ū+ũ
+             * ```
              *
-             * @tparam ElementT Element class (e.g. Quad4).
+             * @tparam ElementT Element type (e.g. Quad4).
              */
             template <class Element>
             struct LinearElasticKernel {
@@ -33,8 +37,7 @@ namespace monad {
                 /// @brief Number of dofs in the element.
                 static constexpr int NumDofs = Element::Dim * Element::NumNodes;
 
-                using Material = LinearElasticMaterial<Element::Dim>;
-                using Traits = LinearElasticKernelTraits<Element::Dim>;
+                using Material = material::LinearElasticMaterial<Element::Dim>;
 
                 using Point = typename Element::Point;
                 using NodesMatrix = typename Element::NodesMatrix;
@@ -49,23 +52,20 @@ namespace monad {
                 /**
                  * @brief Element B matrix evaluated at a local point.
                  *
-                 * The B matrix relates an element's nodal displacements u to strains ε in Voigt
-                 * notation at a local `point`:
+                 * The B matrix maps nodal displacements u∈ℝᵈ to
+                 * strains ε∈ℝᵛ at a local `point`:
                  *
+                 * ```text
                  * ε=Bu
-                 *
-                 * For a D-dimensional element:
-                 *
-                 * - D=2: point=[ξ η]ᵀ
-                 *
-                 * - D=3: point=[ξ η ζ]ᵀ
+                 * ```
                  *
                  * @param[in] point Local point.
                  * @param[in] nodes Element nodes.
                  *
                  * @returns Element B matrix evaluated at `point`.
                  *
-                 * @throws std::invalid_argument if `nodes` define a degenerate or inverted element geometry.
+                 * @throws std::invalid_argument if `nodes` define a degenerate element.
+                 * @throws std::invalid_argument if `nodes` define an inverted element.
                  */
                 static BMatrix bMatrix(const Point &point, const NodesMatrix &nodes) {
                     const auto J = Element::jacobian(point, nodes);
@@ -82,25 +82,61 @@ namespace monad {
                     const auto dN = Element::gradShapeFunctions(point);
                     const auto dNGlobal = J.inverse() * dN;
 
-                    BMatrix B;
-                    Traits::fillB(B, dNGlobal);
+                    BMatrix B = BMatrix::Zero();
+
+                    if constexpr (Element::Dim == 2) {
+                        // Normal strain ε₁₁
+                        B(0, Eigen::seq(0, Eigen::indexing::last, 2)) = dNGlobal.row(0);
+
+                        // Normal strain ε₂₂
+                        B(1, Eigen::seq(1, Eigen::indexing::last, 2)) = dNGlobal.row(1);
+
+                        // Shear strain ε₁₂
+                        B(2, Eigen::seq(0, Eigen::indexing::last, 2)) = dNGlobal.row(1);
+                        B(2, Eigen::seq(1, Eigen::indexing::last, 2)) = dNGlobal.row(0);
+                    }
+                    else {
+                        // Normal strain ε₁₁
+                        B(0, Eigen::seq(0, Eigen::indexing::last, 3)) = dNGlobal.row(0);
+
+                        // Normal strain ε₂₂
+                        B(1, Eigen::seq(1, Eigen::indexing::last, 3)) = dNGlobal.row(1);
+
+                        // Normal strain ε₃₃
+                        B(2, Eigen::seq(2, Eigen::indexing::last, 3)) = dNGlobal.row(2);
+
+                        // Shear strain ε₁₂
+                        B(3, Eigen::seq(0, Eigen::indexing::last, 3)) = dNGlobal.row(1);
+                        B(3, Eigen::seq(1, Eigen::indexing::last, 3)) = dNGlobal.row(0);
+
+                        // Shear strain ε₁₃
+                        B(4, Eigen::seq(0, Eigen::indexing::last, 3)) = dNGlobal.row(2);
+                        B(4, Eigen::seq(2, Eigen::indexing::last, 3)) = dNGlobal.row(0);
+
+                        // Shear strain ε₂₃
+                        B(5, Eigen::seq(1, Eigen::indexing::last, 3)) = dNGlobal.row(2);
+                        B(5, Eigen::seq(2, Eigen::indexing::last, 3)) = dNGlobal.row(1);
+                    }
 
                     return B;
                 }
 
                 /**
-                 * @brief Element mechanical stiffness matrix (left-hand side of the discretized weak form).
+                 * @brief Element mechanical stiffness matrix evaluated at a local point.
                  *
-                 * Weak form lhs for an element e:
+                 * For an element e:
                  *
+                 * ```text
                  * Kₑ=∫_ΩₑBᵀCBdΩₑ
+                 * ```
                  *
-                 * @param[in] point Local point.
+                 * @param[in] material Linear elastic material.
                  * @param[in] nodes Element nodes.
                  *
                  * @returns Element mechanical stiffness matrix evaluated at `point`.
                  *
-                 * @throws std::invalid_argument if `nodes` define a degenerate or inverted element geometry.
+                 * @throws std::invalid_argument if `nodes` define a degenerate element.
+                 * @throws std::invalid_argument if `nodes` define an inverted element.
                  */
                 static StiffnessMatrix lhs(const Material &material, const NodesMatrix &nodes) {
                     const auto rule = Element::quadratureRule();
@@ -116,25 +152,28 @@ namespace monad {
 
                     StiffnessMatrix K = integration::integrateMatrix(integrand, rule);
 
-                    // Remove numerical artifacts
+                    // Remove numerical asymmetry
                     detail::symmetrize(K);
 
                     return K;
                 }
 
                 /**
-                 * @brief Element force matrix (right-hand side of the discretized weak form).
+                 * @brief Element force matrix evaluated at a local point.
                  *
-                 * Weak form rhs for an element e:
+                 * For an element e:
                  *
+                 * ```text
                  * Fₑ=-∫_ΩₑBᵀCdΩₑε̄
+                 * ```
                  *
-                 * @param[in] point Local point.
+                 * @param[in] material Linear transport material.
                  * @param[in] nodes Element nodes.
                  *
                  * @returns Element force matrix evaluated at `point`.
                  *
-                 * @throws std::invalid_argument if `nodes` define a degenerate or inverted element geometry.
+                 * @throws std::invalid_argument if `nodes` define a degenerate element.
+                 * @throws std::invalid_argument if `nodes` define an inverted element.
                  */
                 static FieldMatrix rhs(const Material &material, const NodesMatrix &nodes) {
                     const auto rule = Element::quadratureRule();
@@ -148,6 +187,7 @@ namespace monad {
                         return B.transpose() * C * J.determinant();
                     };
 
+                    // No need to multiply by ε̄=I for unit macroscopic strains
                     return -integration::integrateMatrix(integrand, rule);
                 }
             };

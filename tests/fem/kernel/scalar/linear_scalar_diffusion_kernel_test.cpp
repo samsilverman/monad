@@ -15,6 +15,7 @@ using namespace monad;
 using namespace monad::fem;
 using namespace monad::fem::scalar;
 using namespace monad::detail;
+using namespace monad::material;
 
 using Types = std::tuple<
     LinearScalarDiffusiveKernel<Quad4, GradientConvention::Negative>,

@@ -12,9 +12,9 @@ namespace monad {
     namespace grid {
 
         /**
-         * @brief Structured grid with topology-defined node and element numbering.
+         * @brief Structured grid mesh.
          *
-         * @tparam TopologyT Concrete topology class (e.g. Quad4Topology).
+         * @tparam TopologyT Concrete topology type (e.g. Quad4Topology).
          */
         template <class TopologyT>
         class StructuredGrid {
@@ -35,12 +35,11 @@ namespace monad {
             /**
              * @brief Constructs a structured grid.
              *
-             * @param[in] resolution How many cells in each dimension.
+             * @param[in] resolution Number of elements in each dimension.
              * @param[in] size Physical lengths in each dimension.
              *
              * @throws std::invalid_argument if any entry in `resolution` is zero.
              * @throws std::invalid_argument if any entry in `size` is non-positive.
-             *
              */
             StructuredGrid(const Resolution &resolution, const Size &size)
                 : resolution_(resolution), size_(size) {
@@ -55,7 +54,7 @@ namespace monad {
                 }
             }
 
-            /// @brief How many cells in each dimension.
+            /// @brief Number of elements in each dimension.
             const Resolution &resolution() const noexcept {
                 return resolution_;
             }
@@ -87,11 +86,11 @@ namespace monad {
             }
 
             /**
-             * @brief Coordinates for a specific node.
+             * @brief Coordinates of a node
              *
              * @param[in] index Node index.
              *
-             * @returns Coordinates for a specific node.
+             * @returns Coordinates of a node.
              *
              * @throws std::out_of_range if `index` is outside the range [0,`numNodes()`).
              */
@@ -103,7 +102,7 @@ namespace monad {
                 return Topology::node(index, resolution_, size_);
             }
 
-            /// @brief Coordinates for all nodes.
+            /// @brief Coordinates of all nodes.
             NodesList nodes() const noexcept {
                 NodesList out;
                 out.reserve(numNodes());
@@ -116,11 +115,11 @@ namespace monad {
             }
 
             /**
-             * @brief Node indices for a specific element.
+             * @brief Node indices of an element.
              *
              * @param[in] index Element index.
              *
-             * @returns Node indices for a specific element.
+             * @returns Node indices of an element.
              *
              * @throws std::out_of_range if `index` is outside the range [0,`numElements()`).
              */
@@ -132,7 +131,7 @@ namespace monad {
                 return Topology::element(index, resolution_);
             }
 
-            /// @brief Node indices for all elements.
+            /// @brief Node indices of all elements.
             ElementsList elements() const noexcept {
                 ElementsList out;
                 out.reserve(numElements());
@@ -145,11 +144,11 @@ namespace monad {
             }
 
             /**
-             * @brief Periodic node indices for a specific element.
+             * @brief Periodic node indices of an element.
              *
              * @param[in] index Element index.
              *
-             * @returns Periodic node indices for a specific element.
+             * @returns Periodic node indices of an element.
              *
              * @throws std::out_of_range if `index` is outside the range [0,`numElements()`).
              */
@@ -161,7 +160,7 @@ namespace monad {
                 return Topology::periodicElement(index, resolution_);
             }
 
-            /// @brief Periodic node indices for all elements.
+            /// @brief Periodic node indices of all elements.
             ElementsList periodicElements() const noexcept {
                 ElementsList out;
                 out.reserve(numElements());
@@ -174,11 +173,11 @@ namespace monad {
             }
 
             /**
-             * @brief Nodal coordinates for a specific element.
+             * @brief Nodal coordinates of an element.
              *
              * @param[in] index Element index.
              *
-             * @returns Nodal coordinates for a specific element.
+             * @returns Nodal coordinates of an element.
              *
              * @throws std::out_of_range if `index` is outside the range [0,`numElements()`).
              */
@@ -206,14 +205,14 @@ namespace monad {
             }
 
             /// @brief Grid area.
-            template <int D = Dim>
-            std::enable_if_t<D == 2, double> area() const noexcept {
+            template <int EnableDim = Dim>
+            std::enable_if_t<EnableDim == 2, double> area() const noexcept {
                 return measure();
             }
 
             /// @brief Grid volume.
-            template <int D = Dim>
-            std::enable_if_t<D == 3, double> volume() const noexcept {
+            template <int EnableDim = Dim>
+            std::enable_if_t<EnableDim == 3, double> volume() const noexcept {
                 return measure();
             }
 
@@ -228,7 +227,7 @@ namespace monad {
             }
 
         private:
-            /// @brief How many cells in each dimension.
+            /// @brief Number of elements in each dimension.
             Resolution resolution_;
 
             /// @brief Physical lengths in each dimension.

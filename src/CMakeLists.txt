@@ -4,10 +4,11 @@ set(MONAD_SOURCES
     fem/element/hex20.cpp
     fem/element/quad4.cpp
     fem/element/quad8.cpp
-    grid/hex8_grid.cpp
-    grid/hex20_grid.cpp
-    grid/quad4_grid.cpp
-    grid/quad8_grid.cpp
+    field/make_density_field_from_csv.cpp
+    grid/hex8_topology.cpp
+    grid/hex20_topology.cpp
+    grid/quad4_topology.cpp
+    grid/quad8_topology.cpp
     io/gmsh/write_gmsh_header.cpp
     material/mechanical/linear_elastic_2d.cpp
     material/mechanical/linear_elastic_3d.cpp

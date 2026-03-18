@@ -14,10 +14,12 @@
  *
  * The base material's piezoelectric coupling tensor is set to
  *
+ * ```text
  * ⎡d  0  0⎤
  * ⎣0 -d -d⎦
+ * ```
  *
- * where d=E/10.
+ * where d=⅒E.
  *
  * The Gmsh files are written to:
  *
@@ -106,13 +108,14 @@ int main(int argc, char* argv[]) {
     const auto folder = std::filesystem::path(__FILE__).parent_path();
     const auto csvFile = folder / "data.csv";
 
-    grid.setDensitiesFile(csvFile.string());
+    const auto densityField = monad::makeDensityFieldFromCsv(csvFile);
 
     monad::SolverOptions options;
     options.fields = monad::FieldSave::All;
 
-    const monad::LinearPiezoelectricSolver solver(grid, material);
-    const auto results = solver.solve(options);
+    const monad::LinearPiezoelectricSolver<monad::Quad8Grid> solver;
+
+    const auto results = solver.solve(grid, densityField, material, options);
 
     std::cout << "---Homogenized stiffness tensor---\n" << results.cBar << std::endl;
     std::cout << "\n---Homogenized permittivity tensor---\n" << results.epsilonBar << std::endl;
@@ -120,31 +123,31 @@ int main(int argc, char* argv[]) {
 
     auto file = folder / "density.msh";
 
-    monad::saveGrid(grid, file.string(), true);
+    monad::saveGridAndDensityField(grid, densityField, file.string());
 
     file = folder / "uMacro.msh";
 
-    monad::saveGridAndField(grid, results.uMacro[0], file.string(), "Macro displacement");
+    monad::saveGridAndNodalField(grid, results.uMacro[0], file.string(), "Macro displacement");
 
     file = folder / "uMicro.msh";
 
-    monad::saveGridAndField(grid, results.uMicro[0], file.string(), "Micro displacement");
+    monad::saveGridAndNodalField(grid, results.uMicro[0], file.string(), "Micro displacement");
 
     file = folder / "u.msh";
 
-    monad::saveGridAndField(grid, results.u[0], file.string(), "Displacement");
+    monad::saveGridAndNodalField(grid, results.u[0], file.string(), "Displacement");
 
     file = folder / "phiMacro.msh";
 
-    monad::saveGridAndField(grid, results.phiMacro[0], file.string(), "Macro electric potential");
+    monad::saveGridAndNodalField(grid, results.phiMacro[0], file.string(), "Macro electric potential");
 
     file = folder / "phiMicro.msh";
 
-    monad::saveGridAndField(grid, results.phiMicro[0], file.string(), "Micro electric potential");
+    monad::saveGridAndNodalField(grid, results.phiMicro[0], file.string(), "Micro electric potential");
 
     file = folder / "phi.msh";
 
-    monad::saveGridAndField(grid, results.phi[0], file.string(), "Electric potential");
+    monad::saveGridAndNodalField(grid, results.phi[0], file.string(), "Electric potential");
 
     std::cout << "Saved to " + file.string() << std::endl;
 

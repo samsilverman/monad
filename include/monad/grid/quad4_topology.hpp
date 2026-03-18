@@ -9,7 +9,7 @@ namespace monad {
     namespace grid {
 
         /**
-         * @brief Topology rules for 2D structured Quad4 grids.
+         * @brief Topology rules for structured 2D Quad4 grids.
          */
         struct Quad4Topology {
             using Element = fem::Quad4;
@@ -21,98 +21,51 @@ namespace monad {
             /**
              * @brief Number of nodes.
              *
-             * @param[in] resolution How many cells in each dimension.
+             * @param[in] resolution Number of elements in each dimension.
              *
              * @returns Number of nodes.
              */
-            static std::size_t numNodes(const Resolution& resolution) noexcept {
-                return (resolution[0] + 1) * (resolution[1] + 1);
-            }
+            static std::size_t numNodes(const Resolution& resolution) noexcept;
 
             /**
              * @brief Number of periodic nodes.
              *
-             * @param[in] resolution How many cells in each dimension.
+             * @param[in] resolution Number of elements in each dimension.
              *
              * @returns Number of periodic nodes.
              */
-            static std::size_t numPeriodicNodes(const Resolution& resolution) noexcept {
-                return resolution[0] * resolution[1];
-            }
+            static std::size_t numPeriodicNodes(const Resolution& resolution) noexcept;
 
             /**
-             * @brief Coordinates for a specific node.
+             * @brief Coordinates of a node.
              *
              * @param[in] index Node index.
-             * @param[in] resolution How many cells in each dimension.
+             * @param[in] resolution Number of elements in each dimension.
              * @param[in] size Physical lengths in each dimension.
              *
-             * @returns Coordinates for a specific node.
+             * @returns Coordinates of a node.
              */
-            static Point node(std::size_t index, const Resolution& resolution, const Size& size) noexcept {
-                const std::size_t nx = resolution[0];
-                const std::size_t i = index % (nx + 1);
-                const std::size_t j = index / (nx + 1);
-
-                const double dx = size[0] / static_cast<double>(nx);
-                const double dy = size[1] / static_cast<double>(resolution[1]);
-
-                const double x = static_cast<double>(i) * dx;
-                const double y = static_cast<double>(j) * dy;
-
-                return Point(x, y);
-            }
+            static Point node(std::size_t index, const Resolution& resolution, const Size& size) noexcept;
 
             /**
-             * @brief Node indices for a specific element.
+             * @brief Node indices of an element.
              *
              * @param[in] index Element index.
-             * @param[in] resolution How many cells in each dimension.
+             * @param[in] resolution Number of elements in each dimension.
              *
-             * @returns Node indices for a specific element.
+             * @returns Node indices of an element.
              */
-            static ElementList element(std::size_t index, const Resolution& resolution) noexcept {
-                const std::size_t nx = resolution[0];
-                const std::size_t i = index % nx;
-                const std::size_t j = index / nx;
-
-                const auto nodeIndex = [nx](std::size_t ii, std::size_t jj) {
-                    return jj * (nx + 1) + ii;
-                };
-
-                return {
-                    nodeIndex(i, j),
-                    nodeIndex(i + 1, j),
-                    nodeIndex(i + 1, j + 1),
-                    nodeIndex(i, j + 1)
-                };
-            }
+            static ElementList element(std::size_t index, const Resolution& resolution) noexcept;
 
             /**
-             * @brief Periodic node indices for a specific element.
+             * @brief Periodic node indices of an element.
              *
              * @param[in] index Element index.
-             * @param[in] resolution How many cells in each dimension.
+             * @param[in] resolution Number of elements in each dimension.
              *
-             * @returns Periodic node indices for a specific element.
+             * @returns Periodic node indices of an element.
              */
-            static ElementList periodicElement(std::size_t index, const Resolution& resolution) noexcept {
-                const std::size_t nx = resolution[0];
-                const std::size_t ny = resolution[1];
-                const std::size_t i = index % nx;
-                const std::size_t j = index / nx;
-
-                const auto nodeIndex = [nx, ny](std::size_t ii, std::size_t jj) {
-                    return (jj % ny) * nx + (ii % nx);
-                };
-
-                return {
-                    nodeIndex(i, j),
-                    nodeIndex(i + 1, j),
-                    nodeIndex(i + 1, j + 1),
-                    nodeIndex(i, j + 1)
-                };
-            }
+            static ElementList periodicElement(std::size_t index, const Resolution& resolution) noexcept;
         };
 
     } // namespace grid

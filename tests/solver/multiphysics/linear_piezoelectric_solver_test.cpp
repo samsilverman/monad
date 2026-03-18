@@ -1,32 +1,49 @@
 #include <tuple>
 #include <stdexcept>
 #include <catch2/catch_template_test_macros.hpp>
-#include "monad/grid/quad4_grid.hpp"
-#include "monad/grid/quad8_grid.hpp"
-#include "monad/grid/hex8_grid.hpp"
-#include "monad/grid/hex20_grid.hpp"
-#include "monad/material/mechanical/linear_elastic_material.hpp"
-#include "monad/material/transport/linear_transport_material.hpp"
-#include "monad/material/multiphysics/linear_piezoelectric_material.hpp"
-#include "monad/solver/multiphysics/linear_piezoelectric_solver.hpp"
+#include "monad/grid/grid_aliases.hpp"
+#include "monad/material/mechanical/linear_elastic_material_2d.hpp"
+#include "monad/material/mechanical/linear_elastic_material_3d.hpp"
+#include "monad/material/material_aliases.hpp"
+#include "monad/material/bounds.hpp"
+#include "monad/field/field_aliases.hpp"
+#include "monad/solver/solver_aliases.hpp"
 #include "monad/detail/eigen_utils.hpp"
 #include "monad/detail/constants.hpp"
 
 using namespace monad;
 using namespace monad::detail;
 
-using Types = std::tuple<Quad4Grid, Quad8Grid, Hex8Grid, Hex20Grid>;
+template <class GridT, class MechanicalMaterialT, class ElectricalMaterialT, class MaterialT, class DensityFieldT, class SolverT>
+struct TypePair {
+    using Grid = GridT;
+    using MechanicalMaterial = MechanicalMaterialT;
+    using ElectricalMaterial = ElectricalMaterialT;
+    using Material = MaterialT;
+    using DensityField = DensityFieldT;
+    using Solver = SolverT;
+};
+
+using Types = std::tuple<
+    TypePair<Quad4Grid, LinearElasticMaterial2d, LinearDielectricMaterial2d, LinearPiezoelectricMaterial2d, DensityField2d, LinearPiezoelectricSolver<Quad4Grid>>,
+    TypePair<Quad8Grid, LinearElasticMaterial2d, LinearDielectricMaterial2d, LinearPiezoelectricMaterial2d, DensityField2d, LinearPiezoelectricSolver<Quad8Grid>>,
+    TypePair<Hex8Grid, LinearElasticMaterial3d, LinearDielectricMaterial3d, LinearPiezoelectricMaterial3d, DensityField3d, LinearPiezoelectricSolver<Hex8Grid>>,
+    TypePair<Hex20Grid, LinearElasticMaterial3d, LinearDielectricMaterial3d, LinearPiezoelectricMaterial3d, DensityField3d, LinearPiezoelectricSolver<Hex20Grid>>
+>;
 
 TEMPLATE_LIST_TEST_CASE("monad::LinearPiezoelectricSolver: Test solve", "[monad]", Types) {
-    using Resolution = typename TestType::Resolution;
-    using Size = typename TestType::Size;
-    using Element = typename TestType::Element;
-    using MechanicalMaterial = LinearElasticMaterial<Element::Dim>;
-    using ElectricalMaterial = LinearTransportMaterial<Element::Dim>;
-    using Material = LinearPiezoelectricMaterial<MechanicalMaterial, ElectricalMaterial>;
-    using StiffnessTensor = typename MechanicalMaterial::MaterialTensor;
+    using Grid = typename TestType::Grid;
+    using MechanicalMaterial = typename TestType::MechanicalMaterial;
+    using ElectricalMaterial = typename TestType::ElectricalMaterial;
+    using Material = typename TestType::Material;
+    using DensityField = typename TestType::DensityField;
+    using Solver = typename TestType::Solver;
+
+    using Resolution = typename Grid::Resolution;
+    using Size = typename Grid::Size;
     using CouplingTensor = typename Material::CouplingTensor;
-    using MaterialTensor = typename Material::MaterialTensor;
+    using StiffnessTensor = typename MechanicalMaterial::MaterialTensor;
+    using PermittivityTensor = typename ElectricalMaterial::MaterialTensor;
 
     Resolution resolution;
     resolution.fill(2);
@@ -34,7 +51,7 @@ TEMPLATE_LIST_TEST_CASE("monad::LinearPiezoelectricSolver: Test solve", "[monad]
     Size size;
     size.fill(0.5);
 
-    TestType grid(resolution, size);
+    Grid grid(resolution, size);
 
     StiffnessTensor c = StiffnessTensor::Random();
     // Make PSD
@@ -43,35 +60,40 @@ TEMPLATE_LIST_TEST_CASE("monad::LinearPiezoelectricSolver: Test solve", "[monad]
     c += StiffnessTensor::Identity();
 
     const MechanicalMaterial elasticMaterial(c);
-    const ElectricalMaterial dielectricMaterial(2.1);
+
+    PermittivityTensor epsilon = PermittivityTensor::Random();
+    // Make PSD
+    epsilon = epsilon.transpose() * epsilon;
+    // Make PD
+    epsilon += PermittivityTensor::Identity();
+
+    const ElectricalMaterial dielectricMaterial(epsilon);
 
     const CouplingTensor d = 0.1 * CouplingTensor::Random();
 
     const Material material(elasticMaterial, dielectricMaterial, d);
 
-    SECTION("Density=1 → homogenized=material") {
-        grid.setDensitiesOnes();
-        const LinearPiezoelectricSolver solver(grid, material);
+    DensityField densityField(resolution);
 
-        const auto results = solver.solve();
+    const Solver solver;
+
+    SECTION("Density=1 → homogenized=material") {
+        densityField.setOnes();
+
+        const auto results = solver.solve(grid, densityField, material);
         const auto &cBar = results.cBar;
         const auto &epsilonBar = results.epsilonBar;
         const auto &dBar = results.dBar;
 
-        MaterialTensor op;
-        op << cBar, -dBar.transpose(),
-              -dBar, -epsilonBar;
-
-        const MaterialTensor expected = material.materialTensor();
-
-        REQUIRE(op.isApprox(expected, NUMERICAL_ZERO));
+        REQUIRE(cBar.isApprox(c, NUMERICAL_ZERO));
+        REQUIRE(epsilonBar.isApprox(epsilon, NUMERICAL_ZERO));
+        REQUIRE(dBar.isApprox(d, NUMERICAL_ZERO));
     }
 
-    SECTION("Density=0 → operator=0") {
-        grid.setDensitiesZeros();
-        const LinearPiezoelectricSolver solver(grid, material);
+    SECTION("Density=0 → CBar=0") {
+        densityField.setZeros();
 
-        const auto results = solver.solve();
+        const auto results = solver.solve(grid, densityField, material);
         const auto &cBar = results.cBar;
         const auto &epsilonBar = results.epsilonBar;
         const auto &dBar = results.dBar;
@@ -83,64 +105,42 @@ TEMPLATE_LIST_TEST_CASE("monad::LinearPiezoelectricSolver: Test solve", "[monad]
     }
 
     SECTION("Random density") {
-        grid.setDensitiesRandom(1234);
-        const LinearPiezoelectricSolver solver(grid, material);
+        densityField.setRandom(1234);
 
-        auto results = solver.solve();
-        const auto &cBar = results.cBar;
-        const auto &epsilonBar = results.epsilonBar;
-        const auto &dBar = results.dBar;
+        const auto results = solver.solve(grid, densityField, material);
+        const auto &opBar = results.opBar;
 
-        REQUIRE(isSymmetric(cBar));
-        REQUIRE(isPD(cBar));
-
-        REQUIRE(isSymmetric(epsilonBar));
-        REQUIRE(isPD(epsilonBar));
+        REQUIRE(isSymmetric(opBar));
+        REQUIRE(!isPD(opBar));
 
         SECTION("Voigt/Reuss bounds") {
-            SECTION("cBar") {
-                const auto voigt = elasticMaterial.voigt(grid);
-                const auto reuss = elasticMaterial.reuss(grid);
+            const auto voigt = voigtBound(material, densityField);
+            const auto reuss = reussBound(material, densityField);
 
-                REQUIRE(reuss.trace() <= cBar.trace());
-                REQUIRE(cBar.trace() <= voigt.trace());
-            }
-
-            SECTION("epsilonBar") {
-                const auto voigt = dielectricMaterial.voigt(grid);
-                const auto reuss = dielectricMaterial.reuss(grid);
-
-                REQUIRE(reuss.trace() <= epsilonBar.trace());
-                REQUIRE(epsilonBar.trace() <= voigt.trace());
-            }
+            REQUIRE(reuss.trace() <= opBar.trace());
+            REQUIRE(opBar.trace() <= voigt.trace());
         }
 
         SECTION("Translational invariance") {
             Resolution shift;
             shift.fill(1);
 
-            grid.translate(shift);
+            densityField.translate(shift);
 
-            const LinearPiezoelectricSolver solver2(grid, material);
+            const auto resultsShift = solver.solve(grid, densityField, material);
 
-            results = solver.solve();
-            const auto &cBar2 = results.cBar;
-            const auto &epsilonBar2 = results.epsilonBar;
-            const auto &dBar2 = results.dBar;
+            const auto &opBarShift = resultsShift.opBar;
 
-            REQUIRE(cBar2.isApprox(cBar, NUMERICAL_ZERO));
-            REQUIRE(epsilonBar2.isApprox(epsilonBar, NUMERICAL_ZERO));
-            REQUIRE(dBar2.isApprox(dBar, NUMERICAL_ZERO));
+            REQUIRE(opBarShift.isApprox(opBar, NUMERICAL_ZERO));
         }
     }
 
     SECTION("Bad options") {
-        grid.setDensitiesRandom(1234);
-        const LinearPiezoelectricSolver solver(grid, material);
+        densityField.setRandom(1234);
 
         SolverOptions options;
         options.maxIterations = 1;
 
-        REQUIRE_THROWS_AS(solver.solve(options), std::runtime_error);
+        REQUIRE_THROWS_AS(solver.solve(grid, densityField, material, options), std::runtime_error);
     }
 }

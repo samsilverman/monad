@@ -1,10 +1,7 @@
 #include <sstream>
 #include <string>
 #include <catch2/catch_test_macros.hpp>
-#include "monad/grid/quad4_grid.hpp"
-#include "monad/grid/quad8_grid.hpp"
-#include "monad/grid/hex8_grid.hpp"
-#include "monad/grid/hex20_grid.hpp"
+#include "monad/grid/grid_aliases.hpp"
 #include "monad/io/gmsh/write_gmsh_nodes.hpp"
 
 using namespace monad;

@@ -13,17 +13,16 @@ namespace monad {
     /**
      * @brief Writes a grid to a Gmsh file.
      *
-     * @tparam Grid Grid class (e.g. Quad4Grid).
+     * @tparam Grid Grid type (e.g. Quad4Grid).
      *
-     * @param[in] grid Periodic unit cell grid.
-     * @param[in] file File.
-     * @param[in] saveDensities Set to `true` to save the material densities (default=`false`).
+     * @param[in] grid Grid.
+     * @param[in] file Path to the Gmsh file.
      *
-     * @throws std::invalid_argument if the `file` extension is not `.msh`.
+     * @throws std::invalid_argument if `file` does not have the `.msh` extension.
      * @throws std::runtime_error if the `file` cannot be opened for writing.
      */
     template <typename Grid>
-    void saveGrid(const Grid &grid, const std::string &file, bool saveDensities = false) {
+    void saveGrid(const Grid &grid, const std::string &file) {
         static_assert(Grid::Dim == 2 || Grid::Dim == 3, "Grid spatial dimension must be 2 or 3.");
 
         if (std::filesystem::path(file).extension() != ".msh") {
@@ -40,12 +39,6 @@ namespace monad {
         io::gmsh::writeGmshNodes(ofs, grid);
         ofs << "\n\n";
         io::gmsh::writeGmshElements(ofs, grid);
-
-        if (saveDensities) {
-            ofs << "\n\n";
-            io::gmsh::writeGmshDensities(ofs, grid);
-        }
-
         ofs << "\n";
     }
 

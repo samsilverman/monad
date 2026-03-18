@@ -1,8 +1,7 @@
 #include <stdexcept>
 #include <catch2/catch_test_macros.hpp>
 #include "monad/material/mechanical/linear_elastic_material_2d.hpp"
-#include "monad/material/transport/linear_transport_material_aliases.hpp"
-#include "monad/material/multiphysics/linear_piezoelectric_material.hpp"
+#include "monad/material/material_aliases.hpp"
 #include "monad/detail/constants.hpp"
 
 using namespace monad;

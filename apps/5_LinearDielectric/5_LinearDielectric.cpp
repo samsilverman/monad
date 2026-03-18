@@ -60,37 +60,37 @@ int main(int argc, char* argv[]) {
     const auto folder = std::filesystem::path(__FILE__).parent_path();
     const auto csvFile = folder / "data.csv";
 
-    grid.setDensitiesFile(csvFile.string());
+    const auto densityField = monad::makeDensityFieldFromCsv(csvFile);
 
     monad::SolverOptions options;
     options.fields = monad::FieldSave::All;
 
-    const monad::LinearDielectricSolver solver(grid, material);
+    const monad::LinearDielectricSolver<monad::Quad8Grid> solver;
 
     // Results follow the generic transport naming:
-    // results.KBar → ε̄
+    // results.KBar → ϵ̄
     // results.phiMacro → φ̄
     // results.phiMicro → φ̃
     // results.phi → φ
-    const auto results = solver.solve(options);
+    const auto results = solver.solve(grid, densityField, material, options);
 
     std::cout << "---Homogenized permittivity tensor---\n" << results.KBar << std::endl;
 
     auto file = folder / "density.msh";
 
-    monad::saveGrid(grid, file.string(), true);
+    monad::saveGridAndDensityField(grid, densityField, file.string());
 
     file = folder / "phiMacro.msh";
 
-    monad::saveGridAndField(grid, results.phiMacro[0], file.string(), "Macro electric potential");
+    monad::saveGridAndNodalField(grid, results.phiMacro[0], file.string(), "Macro electric potential");
 
     file = folder / "phiMicro.msh";
 
-    monad::saveGridAndField(grid, results.phiMicro[0], file.string(), "Micro electric potential");
+    monad::saveGridAndNodalField(grid, results.phiMicro[0], file.string(), "Micro electric potential");
 
     file = folder / "phi.msh";
 
-    monad::saveGridAndField(grid, results.phi[0], file.string(), "Electric potential");
+    monad::saveGridAndNodalField(grid, results.phi[0], file.string(), "Electric potential");
 
     std::cout << "Saved to " + file.string() << std::endl;
 

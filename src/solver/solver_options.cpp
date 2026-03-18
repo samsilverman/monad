@@ -14,10 +14,6 @@ namespace monad {
         return (flags & bit) != FieldSave::None;
     }
 
-    SolverOptions SolverOptions::defaults() {
-        return SolverOptions{};
-    }
-
     bool SolverOptions::operator==(const SolverOptions &other) const {
         return maxIterations == other.maxIterations
             && tolerance == other.tolerance

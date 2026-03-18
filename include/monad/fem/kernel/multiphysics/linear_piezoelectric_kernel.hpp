@@ -8,6 +8,7 @@
 #include "monad/fem/kernel/mechanical/linear_elastic_kernel.hpp"
 #include "monad/fem/kernel/scalar/linear_scalar_diffusive_kernel.hpp"
 #include "monad/integration/integrate_matrix.hpp"
+#include "monad/detail/eigen_utils.hpp"
 
 namespace monad {
 
@@ -16,19 +17,24 @@ namespace monad {
         namespace multiphysics {
 
             /**
-             * @brief Provides core FEM computations for a linear piezoelectric element.
+             * @brief Core FEM computations for a linear piezoelectric element.
              *
-             * This kernel implements the weak form of the linear piezoelectric PDE:
+             * This kernel implements the weak form of the linear piezoelectricity:
              *
-             * ∇·S=∇·(cT-dᵀE)=0
-             * ∇·(-D)=∇·(-dT-εE)=0
+             * ```text
+             * ∇·T=∇·(cS-dᵀE)=0
+             * ∇·(D)=∇·(dS+ϵE)=0
+             * ```
              *
-             * where the displacements and electric potentials are decomposed into macroscopic and microscopic components:
+             * where the displacements u∈ℝᵈ and electric potentials φ∈ℝ are decomposed into
+             * macroscopic and microscopic components:
              *
+             * ```text
              * u=ū+ũ
              * φ=φ̄+φ̃
+             * ```
              *
-             * @tparam Element Element class (e.g. Quad4).
+             * @tparam Element Element type (e.g. Quad4).
              */
             template <class Element>
             struct LinearPiezoelectricKernel {
@@ -40,7 +46,9 @@ namespace monad {
                 /// @brief Number of dofs in the element.
                 static constexpr int NumDofs = ElectricalKernel::NumDofs + MechanicalKernel::NumDofs;
 
-                using Material = LinearPiezoelectricMaterial<LinearElasticMaterial<Element::Dim>, LinearTransportMaterial<Element::Dim>>;
+                using MechanicalMaterial = material::LinearElasticMaterial<Element::Dim>;
+                using ElectricalMaterial = material::LinearTransportMaterial<Element::Dim>;
+                using Material = material::LinearPiezoelectricMaterial<MechanicalMaterial, ElectricalMaterial>;
 
                 using Point = typename Element::Point;
                 using NodesMatrix = typename Element::NodesMatrix;
@@ -51,37 +59,50 @@ namespace monad {
                 /// @brief Element piezoelectric stiffness matrix type.
                 using StiffnessMatrix = Eigen::Matrix<double, NumDofs, NumDofs>;
 
-                /// @brief Element mechanical field (induced by macroscopic electrical loading) matrix type.
+                /// @brief Element mechanical field matrix type induced by macroscopic electrical loading.
                 using UPhiCouplingFieldMatrix = Eigen::Matrix<double, MechanicalKernel::NumDofs, Element::Dim>;
 
-                /// @brief Element electrical field (induced by macroscopic mechanical loading) matrix type.
+                /// @brief Element electrical field matrix type induced by macroscopic mechanical loading.
                 using PhiUCouplingFieldMatrix = Eigen::Matrix<double, ElectricalKernel::NumDofs, Material::VoigtSize>;
 
                 /// @brief Element electromechanical field matrix type.
                 using FieldMatrix = Eigen::Matrix<double, NumDofs, Material::VoigtSize + Element::Dim>;
 
                 /**
-                 * @brief Element piezoelectric stiffness matrix (left-hand side of the discretized weak form).
+                 * @brief Element piezoelectric stiffness matrix evaluated at a local point.
                  *
-                 * Weak form lhs for an element e:
+                 * For an element e:
                  *
                  * ```text
                  * Kₑ = ⎡ (Kᵤᵤ)ₑ  -(Kᵤᵩ)ₑ⎤
                  *      ⎣-(Kᵩᵤ)ₑ  -(Kᵩᵩ)ₑ⎦
                  * ```
                  *
-                 * - (Kᵤᵤ)ₑ=∫_ΩₑBᵤᵀsBᵤdΩₑ (element mechanical stiffness matrix)
+                 * - Element mechanical stiffness matrix:
                  *
-                 * - (Kᵩᵩ)ₑ=∫_ΩᵩBᵤᵀεBᵩdΩₑ (element electrical stiffness matrix)
+                 * ```text
+                 * (Kᵤᵤ)ₑ=∫_ΩₑBᵤᵀcBᵤdΩₑ
+                 * ```
                  *
-                 * - (Kᵩᵤ)ₑ=(Kᵤᵩ)ₑᵀ=∫_ΩᵩBᵩᵀdBᵤdΩₑ=(∫_ΩᵩBᵤᵀdᵀBᵩdΩₑ)ᵀ (element coupling stiffness matrix)
+                 * - Element electrical stiffness matrix:
                  *
-                 * @param[in] point Local point.
+                 * ```text
+                 * (Kᵩᵩ)ₑ=∫_ΩᵩBᵤᵀεBᵩdΩₑ
+                 * ```
+                 *
+                 * - Element piezoelectric coupling stiffness matrix:
+                 *
+                 * ```text
+                 * (Kᵩᵤ)ₑ=(Kᵤᵩ)ₑᵀ=∫_ΩᵩBᵩᵀdBᵤdΩₑ=(∫_ΩᵩBᵤᵀdᵀBᵩdΩₑ)ᵀ
+                 * ```
+                 *
+                 * @param[in] material Linear piezoelectric material.
                  * @param[in] nodes Element nodes.
                  *
                  * @returns Element piezoelectric stiffness matrix evaluated at `point`.
                  *
-                 * @throws std::invalid_argument if `nodes` define a degenerate or inverted element geometry.
+                 * @throws std::invalid_argument if `nodes` define a degenerate element.
+                 * @throws std::invalid_argument if `nodes` define an inverted element.
                  */
                 static StiffnessMatrix lhs(const Material &material, const NodesMatrix &nodes) {
                     const auto rule = Element::quadratureRule();
@@ -104,29 +125,33 @@ namespace monad {
                     K << Kuu, -Kphiu.transpose(),
                          -Kphiu, -Kphiphi;
 
+                    // Remove numerical asymmetry
+                    detail::symmetrize(K);
+
                     return K;
                 }
 
                 /**
-                 * @brief Element source matrix (right-hand side of the discretized weak form).
+                 * @brief Element source matrix evaluated at a local point.
                  *
-                 * Weak form rhs for an element e:
+                 * For an element e:
                  *
                  * ```text
                  * Fₑ = ⎡ (Fᵤ)ₑ⎤ = ⎡ (Fᵤᵤ)ₑ  (Fᵤᵩ)ₑ⎤
                  *      ⎣-(Fᵩ)ₑ⎦   ⎣-(Fᵩᵤ)ₑ -(Fᵩᵩ)ₑ⎦
                  * ```
                  *
-                 * - (Fᵤ)ₑ=[-∫_ΩₑBᵤᵀsdΩₑT̄  ∫_ΩₑBᵤᵀdᵀdΩₑĒ]
+                 * - (Fᵤ)ₑ=[-∫_ΩₑBᵤᵀcdΩₑT̄  ∫_ΩₑBᵤᵀdᵀdΩₑĒ]
                  *
                  * - (Fᵩ)ₑ=[-∫_ΩₑBᵩᵀdᵀdΩₑT̄ -∫_ΩₑBᵩᵀεdΩₑĒ]
                  *
-                 * @param[in] point Local point.
+                 * @param[in] material Linear piezoelectric material.
                  * @param[in] nodes Element nodes.
                  *
                  * @returns Element source matrix evaluated at `point`.
                  *
-                 * @throws std::invalid_argument if `nodes` define a degenerate or inverted element geometry.
+                 * @throws std::invalid_argument if `nodes` define a degenerate element.
+                 * @throws std::invalid_argument if `nodes` define an inverted element.
                  */
                 static FieldMatrix rhs(const Material &material, const NodesMatrix &nodes) {
                     const auto rule = Element::quadratureRule();
@@ -149,7 +174,11 @@ namespace monad {
 
                     const auto Fuu = MechanicalKernel::rhs(material.elasticMaterial(), nodes);
                     const auto Fphiphi = ElectricalKernel::rhs(material.dielectricMaterial(), nodes);
+
+                    // No need to multiply by T̄=I for unit macroscopic strains
                     const PhiUCouplingFieldMatrix Fphiu = -integration::integrateMatrix(integrandPhiU, rule);
+
+                    // No need to multiply by Ē=I for unit macroscopic electric fields
                     const UPhiCouplingFieldMatrix Fuphi = integration::integrateMatrix(integrandUPhi, rule);
 
                     FieldMatrix F;

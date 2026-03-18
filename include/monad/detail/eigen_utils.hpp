@@ -11,31 +11,11 @@ namespace monad {
     namespace detail {
 
         /**
-         * @brief Converts an array to an Eigen vector.
-         *
-         * @tparam N Size of array.
-         *
-         * @param[in] array Array.
-         *
-         * @returns Eigen vector of `array`.
-         */
-        template <std::size_t N>
-        inline Eigen::Vector<int, N> arrayToEigen(const std::array<std::size_t, N> &array) noexcept {
-            Eigen::Vector<int, N> vector;
-
-            for (std::size_t i = 0; i < N; ++i) {
-                vector[static_cast<int>(i)] = static_cast<int>(array[i]);
-            }
-
-            return vector;
-        }
-
-        /**
          * @brief Symmetrizes a square matrix.
          *
-         * This function replaces A with ½(A+Aᵀ), removing numerical
-         * asymmetry introduced by floating-point error in computations
-         * that theoretically produce symmetric matrices.
+         * Replaces A with ½(A+Aᵀ) to remove numerical asymmetry from
+         * floating-point error in computations that should produce a
+         * symmetric matrix.
          *
          * @tparam Derived Eigen matrix type.
          *
@@ -43,7 +23,7 @@ namespace monad {
          *
          * @throws std::invalid_argument if `A` is not square.
          *
-         * @note Use this only to clean up numerical noise.
+         * @note Use this only to remove numerical noise.
          */
         template <typename Derived>
         inline void symmetrize(Eigen::MatrixBase<Derived> &A) {
@@ -75,8 +55,8 @@ namespace monad {
         /**
          * @brief Checks if a matrix is positive definite.
          *
-         * This function checks if a matrix is positive definite
-         * by attempting to perform a Cholesky factorization.
+         * Uses a Cholesky factorization to test positive
+         * definiteness.
          *
          * @tparam Derived Eigen matrix type.
          *
@@ -99,8 +79,8 @@ namespace monad {
         /**
          * @brief Checks if a matrix is positive semi-definite.
          *
-         * This function checks if a matrix is positive semi-definite
-         * by verifying that all its eigenvalues are non-negative.
+         * Checks positive semi-definiteness by verifying that all
+         * eigenvalues are non-negative up to numerical tolerance.
          *
          * @tparam Derived Eigen matrix type.
          *
